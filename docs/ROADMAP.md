@@ -63,8 +63,9 @@ Chaque phase se termine par une version utilisable. ✅ fait · 🔜 en cours ·
 - ✅ CSP stricte (vérifiée dans la vraie app : aucune violation)
 - ✅ Journal d'erreurs local (`%LOCALAPPDATA%\io.github.luz0gg.convix\logs\convix.log`) : échecs, plantages, erreurs de l'interface
 - ✅ Section « À propos » : version, GitHub, signaler un problème, afficher le journal, crédits
-- 🔜 Publier la première Release (v1.0.0) puis tester une vraie mise à jour (v1.0.1)
-- 🎯 **V1.0**
+- ✅ **v1.0.0 publiée** le 2026-11-06 : https://github.com/Luz0gg/convix/releases/tag/v1.0.0
+- 🔜 Tester une vraie mise à jour automatique (publier une v1.0.1 sur un PC où la v1.0.0 est installée)
+- 🎯 **V1.0** ✅
 
 ## Après la V1 (idées validées, ordre à décider)
 - Presets « 1 clic » personnalisables + historique des conversions
