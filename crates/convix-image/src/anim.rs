@@ -2,7 +2,7 @@
 //! A still file returns `None` and goes through the normal single-image path.
 
 use crate::decode::img_err;
-use convertio_core::{Error, Format, Result};
+use convix_core::{Error, Format, Result};
 use image::{
     AnimationDecoder, Frame,
     codecs::{

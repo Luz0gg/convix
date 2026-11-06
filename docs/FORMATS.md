@@ -1,6 +1,6 @@
 # Matrice des formats
 
-Source de vérité : le code (`crates/convertio-*/src/lib.rs`, fonction `operations_for`). Ce tableau le résume.
+Source de vérité : le code (`crates/convix-*/src/lib.rs`, fonction `operations_for`). Ce tableau le résume.
 
 ## Images (intégré, aucun module) — ✅ fonctionnel
 
@@ -10,7 +10,7 @@ Source de vérité : le code (`crates/convertio-*/src/lib.rs`, fonction `operati
 | SVG (rendu vectoriel) | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
 | HEIC (iPhone), AVIF | ✔ | ✔ | ✔ | ✔* | ✔ | ✔ | ✔ | ✔ | ✔ |
 
-\* Lecture via les codecs de Windows. Si Windows ne les a pas, ConvertIO indique quoi installer (gratuit, Microsoft Store) : « Extensions d'image HEIF » + « Extensions vidéo HEVC » pour le HEIC, « Extension vidéo AV1 » pour l'AVIF.
+\* Lecture via les codecs de Windows. Si Windows ne les a pas, Convix indique quoi installer (gratuit, Microsoft Store) : « Extensions d'image HEIF » + « Extensions vidéo HEVC » pour le HEIC, « Extension vidéo AV1 » pour l'AVIF.
 
 ### Options par format de sortie
 
@@ -38,14 +38,23 @@ Source de vérité : le code (`crates/convertio-*/src/lib.rs`, fonction `operati
 - Métadonnées EXIF (GPS, appareil) **retirées** du résultat.
 - GIF, WebP et APNG animés → GIF ou WebP : **toutes les images et leurs durées sont gardées**. Vers un format fixe (PNG, JPEG…) : première image.
 
-## Audio (module `ffmpeg`) — ⬜ Phase 2
+## Audio (module `ffmpeg`, téléchargé au premier besoin) — 🔜 Phase 2
 
 | Entrée | Sorties |
 |---|---|
-| MP3, WAV, FLAC, AAC, M4A, OGG, Opus | tous les autres |
+| MP3, WAV, FLAC, AAC, M4A, OGG, Opus, AIFF | tous les autres |
 | Vidéo (MP4, MOV, MKV, WebM, AVI) | extraction en MP3, WAV, FLAC, M4A |
 
-Options : débit (96-320 kbps, formats avec perte), fréquence (source / 48 / 44,1 kHz), normalisation du volume.
+| Sortie | Encodeur | Options |
+|---|---|---|
+| MP3 | LAME | débit (défaut 320 kbps) |
+| M4A, AAC | AAC natif FFmpeg | débit (défaut 192 kbps) |
+| OGG | Vorbis | débit (défaut 192 kbps) |
+| Opus | libopus | débit (défaut 128 kbps), toujours 48 kHz |
+| WAV, AIFF | PCM | précision : comme l'original (16, 24, 32 bits ou flottant) / 16 / 24 bits |
+| FLAC | FLAC niveau 8 | précision : comme l'original / 16 / 24 bits |
+
+Pour toutes : fréquence (comme l'original / 48 / 44,1 kHz) et volume (inchangé, normalisé −14 LUFS streaming, −16 LUFS podcast, −23 LUFS TV). La normalisation garde la fréquence d'origine. Les tags (artiste, titre…) sont conservés, la vidéo et la pochette sont retirées. Seule la première piste audio est prise.
 
 ## PDF — ⬜ Phase 3
 

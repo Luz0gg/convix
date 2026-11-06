@@ -40,6 +40,9 @@ export function Thumbnail({ file }: { file: FileInfo }) {
       style={url ? { backgroundImage: "repeating-conic-gradient(#8883 0 25%, transparent 0 50%)", backgroundSize: "12px 12px" } : undefined}
     >
       {url && <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />}
+      {!url && (file.kind === "audio" || file.kind === "video") && (
+        <span className="absolute inset-0 flex items-center justify-center pb-2 text-2xl text-muted">{file.kind === "audio" ? "♪" : "▶"}</span>
+      )}
       <span className="absolute bottom-0.5 left-0.5 rounded bg-black/70 px-1 text-[10px] font-bold tracking-wide text-white">
         {file.formatLabel ?? "?"}
       </span>

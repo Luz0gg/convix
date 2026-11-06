@@ -13,7 +13,7 @@ mod transform;
 #[cfg(windows)]
 mod wic;
 
-use convertio_core::{
+use convix_core::{
     Converter, Error, Format, JobContext, OperationCategory, OperationDescriptor, OptionSpec,
     OptionValues, Result, format, operation::Choice, operation::OptionValuesExt, output,
 };
@@ -283,12 +283,12 @@ pub fn thumbnail(path: &std::path::Path, max: u32) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use convertio_core::{CancelToken, Registry, output::OutputPolicy};
+    use convix_core::{CancelToken, Registry, output::OutputPolicy};
     use image::{Rgba, RgbaImage};
     use std::path::Path;
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("convertio-img-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("convix-img-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir

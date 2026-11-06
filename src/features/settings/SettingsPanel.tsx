@@ -1,8 +1,10 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState, type ReactNode } from "react";
 import { useI18n } from "../../i18n";
-import { api } from "../../lib/api";
+import { api, formatSize } from "../../lib/api";
 import type { Settings } from "../../lib/types";
+import { ModuleProgressBar } from "../modules/ModuleProgressBar";
+import { useModules } from "../modules/modules";
 
 function Segmented<V extends string>({ value, options, onChange }: { value: V; options: [V, string][]; onChange: (v: V) => void }) {
   return (
@@ -26,6 +28,62 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{title}</h3>
       {children}
     </section>
+  );
+}
+
+/** External tools downloaded on demand (FFmpeg…): status, download, removal. */
+function ModulesList() {
+  const { t } = useI18n();
+  const { modules, progress, install, cancel, remove } = useModules();
+  const [error, setError] = useState<string | null>(null);
+  const run = (action: () => Promise<void>) => {
+    setError(null);
+    action().catch((e) => {
+      const text = String(e);
+      if (!text.includes("annulée")) setError(text);
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      {modules.map((m) => {
+        const current = progress[m.id];
+        const installed = m.status.state !== "notInstalled";
+        const version = m.status.state === "installed" ? m.status.version : m.status.state === "updateAvailable" ? m.status.installed : null;
+        return (
+          <div key={m.id} className="space-y-2 rounded-lg border border-border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">
+                  {m.name} {version && <span className="text-xs font-normal text-muted">v{version}</span>}
+                </p>
+                <p className="text-xs text-muted">{t(`module.${m.id}.why`)}</p>
+              </div>
+              {current ? (
+                <button onClick={() => cancel(m.id)} className="shrink-0 rounded-md border border-danger px-2 py-1 text-xs text-danger">
+                  {t("run.cancel")}
+                </button>
+              ) : m.status.state === "updateAvailable" ? (
+                <button onClick={() => run(() => install(m.id))} className="shrink-0 rounded-md bg-accent px-2 py-1 text-xs text-white">
+                  {t("module.update", { version: m.version })}
+                </button>
+              ) : installed ? (
+                <button onClick={() => run(() => remove(m.id))} className="shrink-0 rounded-md border border-border px-2 py-1 text-xs hover:border-danger hover:text-danger">
+                  {t("module.remove")}
+                </button>
+              ) : (
+                <button onClick={() => run(() => install(m.id))} className="shrink-0 rounded-md bg-accent px-2 py-1 text-xs text-white">
+                  {t("module.prompt.download", { size: formatSize(m.downloadSize) })}
+                </button>
+              )}
+            </div>
+            {current && <ModuleProgressBar progress={current} />}
+            <p className="text-[11px] text-muted">{t("module.prompt.license", { license: m.license })}</p>
+          </div>
+        );
+      })}
+      {error && <p className="text-xs text-danger">{error}</p>}
+    </div>
   );
 }
 
@@ -111,7 +169,11 @@ export function SettingsPanel({ settings, onChange, onClose }: { settings: Setti
           <p className="text-xs text-muted">{t("settings.quiet.hint")}</p>
         </Section>
 
-        <p className="pt-4 text-xs text-muted">ConvertIO · {t("settings.about", { version })}</p>
+        <Section title={t("settings.modules")}>
+          <ModulesList />
+        </Section>
+
+        <p className="pt-4 text-xs text-muted">Convix · {t("settings.about", { version })}</p>
       </aside>
     </div>
   );

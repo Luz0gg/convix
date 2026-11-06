@@ -1,4 +1,4 @@
-# Cadrage — ConvertIO
+# Cadrage — Convix
 
 > Document de référence du projet. Toute décision structurante est notée ici (ou dans `docs/adr/`).
 > Dernière mise à jour : 2026-11-06.
@@ -7,9 +7,9 @@
 
 Un **logiciel Windows léger** qui convertit n'importe quel fichier en un autre, **en local** (rien n'est envoyé sur Internet), en un geste :
 
-1. J'ouvre ConvertIO (ou je fais clic droit sur un fichier dans l'Explorateur).
+1. J'ouvre Convix (ou je fais clic droit sur un fichier dans l'Explorateur).
 2. Je glisse-dépose un ou plusieurs fichiers.
-3. ConvertIO détecte le type réel du fichier et m'affiche **tout ce qu'il peut en faire** : convertir en X, compresser avec/sans perte, redimensionner, extraire…
+3. Convix détecte le type réel du fichier et m'affiche **tout ce qu'il peut en faire** : convertir en X, compresser avec/sans perte, redimensionner, extraire…
 4. Un clic → le résultat apparaît **à côté de l'original**.
 
 À terme : une boîte à outils fichiers complète, extensible par **modules** (upscale d'images, etc.).
@@ -39,7 +39,7 @@ Un **logiciel Windows léger** qui convertit n'importe quel fichier en un autre,
 | Langues | **Français (défaut) + anglais** dès le départ | Ajouter une langue = un fichier JSON. |
 | Sortie par défaut | **À côté de l'original** ; réglages : dossier fixe ou « demander à chaque fois » | Le plus naturel pour un monteur. |
 | Clic droit Explorateur | **Dès la V1** | Gain de temps énorme au quotidien. [ADR 0003](adr/0003-menu-contextuel.md). |
-| Nom | **ConvertIO = nom de code**, centralisé pour renommer facilement | « Convertio » est déjà un service connu (convertio.co) : à changer avant toute diffusion publique large. |
+| Nom | ~~ConvertIO~~ (nom de code) → **Convix** (2026-11-06) | « Convertio » existait déjà (convertio.co). « Convix » commence par « Conv » : taper « conv » dans la recherche Windows trouve l’app. |
 | Priorité formats | **Images, audio, PDF** d'abord. **Vidéo plus tard** | La vidéo a déjà de bons outils (Shutter Encoder) ; l'extraction audio d'une vidéo reste en V1, c'est presque gratuit. |
 | Thème | **Sombre par défaut**, suit le thème clair du système | Cohérent avec les logiciels de montage. |
 
@@ -61,13 +61,15 @@ Un **logiciel Windows léger** qui convertit n'importe quel fichier en un autre,
 
 | Sujet | Décision |
 |---|---|
-| Nom | Le dépôt **reste public** ; on choisit **un autre nom dans le même esprit** que ConvertIO. |
+| Nom | Le dépôt **reste public** ; nom définitif **Convix** (commence par « Conv », aucun conflit trouvé). Dépôt GitHub renommé `Luz0gg/convix`. |
 | Priorité | **Tout le pôle image d'abord** (Phase 1), avant l'audio et le PDF. |
-| Dossier surveillé | **Jamais.** ConvertIO reste un outil où l'on glisse-dépose soi-même. |
+| Dossier surveillé | **Jamais.** Convix reste un outil où l'on glisse-dépose soi-même. |
 | Signature de code payante | **Non.** On accepte l'avertissement SmartScreen à l'installation (« Informations complémentaires › Exécuter quand même »). Le clic droit natif Windows 11 (qui exige une signature) est donc abandonné : on garde le menu « Afficher plus d'options ». |
+| FFmpeg | Build **gyan.dev « essentials »** (lien officiel de ffmpeg.org), version figée (9.0.2) avec empreinte SHA-256, archive **7z de 34 Mo** (au lieu de 115 Mo en zip). Seul `ffmpeg.exe` est gardé. Téléchargé par l'utilisateur depuis GitHub (GyanD/codexffmpeg), jamais redistribué par nous. |
+| Audio | Précision « comme l'original » par défaut (un WAV 24 bits reste en 24 bits) ; normalisation au choix : −14 LUFS (streaming), −16 (podcast), −23 (TV). |
 
 ## 5. Questions encore ouvertes
 
-- [ ] **Nom définitif** : choisir dans la liste proposée (vérifier domaine, GitHub, marque).
+- [x] **Nom définitif** : **Convix**.
 - [ ] **Logo / identité visuelle.**
 - [ ] **Presets** : quels raccourcis « 1 clic » veux-tu en premier ? (ex. « WebP → PNG », « WAV → MP3 320 »).

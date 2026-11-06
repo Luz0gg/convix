@@ -7,6 +7,17 @@ export function JobStatusLine({ job }: { job: JobEvent }) {
   const { t } = useI18n();
 
   if (job.status === "running") {
+    if (job.progress != null) {
+      const percent = Math.round(job.progress * 100);
+      return (
+        <div className="mt-3 flex items-center gap-3">
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
+            <div className="h-full rounded-full bg-accent transition-[width] duration-200" style={{ width: `${percent}%` }} />
+          </div>
+          <span className="w-10 text-right text-xs tabular-nums text-muted">{percent} %</span>
+        </div>
+      );
+    }
     return <p className="mt-3 animate-pulse text-sm text-accent">{t("job.running")}</p>;
   }
   if (job.status === "cancelled") {

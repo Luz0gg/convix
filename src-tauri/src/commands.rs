@@ -7,10 +7,13 @@ use crate::{
     settings::{self, Settings},
     shell_integration,
 };
-use convertio_core::{CancelToken, Format, MediaKind, OperationDescriptor, OptionValues, format};
-use convertio_modules::ModuleStatus;
+use convix_core::{CancelToken, Format, MediaKind, OperationDescriptor, OptionValues, format};
+use convix_modules::{InstallProgress, ModuleInfo};
 use serde::Serialize;
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
 use tauri::{AppHandle, Emitter, State};
 
 #[derive(Serialize)]
@@ -47,7 +50,8 @@ pub fn update_settings(state: State<'_, AppState>, settings: Settings) -> Result
         || (settings.shell_integration && previous.language != settings.language);
     if menu_changed {
         if settings.shell_integration {
-            shell_integration::install(&state.registry, &settings.language)?;
+            let modules = state.modules.clone();
+            shell_integration::install(&state.registry, &settings.language, &|id| modules.locate(id).is_some())?;
         } else {
             shell_integration::uninstall()?;
         }
@@ -179,7 +183,7 @@ pub async fn thumbnail(path: PathBuf) -> Result<tauri::ipc::Response, String> {
     static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
     tauri::async_runtime::spawn_blocking(move || {
         let pool = POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().num_threads(3).build().expect("thumbnail pool"));
-        pool.install(|| convertio_image::thumbnail(&path, 160))
+        pool.install(|| convix_image::thumbnail(&path, 160))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -194,7 +198,69 @@ pub fn remember_options(state: State<'_, AppState>, operation_id: String, option
     crate::options::remember(&state.options_path, &operation_id, options).map_err(|e| e.to_string())
 }
 
+// ---------- modules (FFmpeg…) ----------
+
+pub const MODULE_EVENT: &str = "module-progress";
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ModuleProgressEvent {
+    id: String,
+    #[serde(flatten)]
+    progress: InstallProgress,
+}
+
+/// Key under which a module download is cancellable with `cancel_batch`.
+fn install_key(id: &str) -> String {
+    format!("module:{id}")
+}
+
 #[tauri::command]
-pub fn module_status(state: State<'_, AppState>, id: String) -> ModuleStatus {
-    state.modules.status(&id, None)
+pub fn module_list(state: State<'_, AppState>) -> Vec<ModuleInfo> {
+    state.modules.list()
+}
+
+/// Download + verify + unpack a module. Progress arrives as `module-progress` events;
+/// cancel with `cancel_batch("module:<id>")`.
+#[tauri::command]
+pub async fn install_module(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<Vec<ModuleInfo>, String> {
+    let cancel = CancelToken::new();
+    {
+        let mut batches = state.batches.lock().unwrap();
+        if batches.contains_key(&install_key(&id)) {
+            return Err("téléchargement déjà en cours".into());
+        }
+        batches.insert(install_key(&id), cancel.clone());
+    }
+
+    let modules = state.modules.clone();
+    let (event_app, event_id) = (app.clone(), id.clone());
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let last = Mutex::new((None, 0u64));
+        let progress = |p: InstallProgress| {
+            // ~200 events for the whole download, plus every phase change.
+            let mut last = last.lock().unwrap();
+            if last.0 != Some(p.phase) || p.done >= last.1 + p.total / 200 || p.done == p.total {
+                *last = (Some(p.phase), p.done);
+                let _ = event_app.emit(MODULE_EVENT, ModuleProgressEvent { id: event_id.clone(), progress: p });
+            }
+        };
+        modules.install(&event_id, &progress, &|| cancel.is_cancelled())
+    })
+    .await;
+    state.batches.lock().unwrap().remove(&install_key(&id));
+
+    result.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
+    crate::refresh_shell_menu(&state); // audio entries appear in the Explorer menu
+    Ok(state.modules.list())
+}
+
+#[tauri::command]
+pub fn remove_module(state: State<'_, AppState>, id: String) -> Result<Vec<ModuleInfo>, String> {
+    if state.modules.manifest(&id).is_none() {
+        return Err(format!("module inconnu : {id}"));
+    }
+    state.modules.remove(&id).map_err(|e| e.to_string())?;
+    crate::refresh_shell_menu(&state);
+    Ok(state.modules.list())
 }

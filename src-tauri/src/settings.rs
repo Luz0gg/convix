@@ -2,7 +2,7 @@
 //! Kept on the Rust side (not in the webview) because the Explorer context menu
 //! needs them too (output folder, menu language).
 
-use convertio_core::OutputPolicy;
+use convix_core::OutputPolicy;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 

@@ -1,5 +1,5 @@
 [package]
-name = "convertio-modules"
+name = "convix-modules"
 description = "Download, verify and locate external modules (ffmpeg, pdfium, upscalers…)"
 version.workspace = true
 edition.workspace = true
@@ -10,5 +10,7 @@ authors.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-
-# Planned (Phase 2): reqwest (download, rustls), sha2 (checksum), zip / sevenz-rust (extract)
+# Windows' own TLS stack (SChannel): system certificates, nothing to compile, small binary.
+ureq = { version = "3.5", default-features = false, features = ["native-tls-no-default"] }
+sha2 = "0.11"
+sevenz-rust2 = { version = "0.25", default-features = false }

@@ -1,4 +1,4 @@
-//! File formats known to ConvertIO and how to detect them.
+//! File formats known to Convix and how to detect them.
 
 use serde::{Deserialize, Serialize};
 use std::{fs::File, io::Read, path::Path};
@@ -37,6 +37,7 @@ pub enum Format {
     M4a,
     Ogg,
     Opus,
+    Aiff,
     // Video
     Mp4,
     Mov,
@@ -67,6 +68,7 @@ impl Format {
         Format::M4a,
         Format::Ogg,
         Format::Opus,
+        Format::Aiff,
         Format::Mp4,
         Format::Mov,
         Format::Mkv,
@@ -79,7 +81,7 @@ impl Format {
         use Format::*;
         match self {
             Png | Jpeg | Webp | Avif | Gif | Bmp | Tiff | Ico | Heic | Svg | Tga => MediaKind::Image,
-            Mp3 | Wav | Flac | Aac | M4a | Ogg | Opus => MediaKind::Audio,
+            Mp3 | Wav | Flac | Aac | M4a | Ogg | Opus | Aiff => MediaKind::Audio,
             Mp4 | Mov | Mkv | Webm | Avi => MediaKind::Video,
             Pdf => MediaKind::Document,
         }
@@ -107,6 +109,7 @@ impl Format {
             M4a => "m4a",
             Ogg => "ogg",
             Opus => "opus",
+            Aiff => "aiff",
             Mp4 => "mp4",
             Mov => "mov",
             Mkv => "mkv",
@@ -138,6 +141,7 @@ impl Format {
             M4a => "M4A",
             Ogg => "OGG",
             Opus => "Opus",
+            Aiff => "AIFF",
             Mp4 => "MP4",
             Mov => "MOV",
             Mkv => "MKV",
@@ -169,6 +173,7 @@ impl Format {
             "m4a" => M4a,
             "ogg" | "oga" => Ogg,
             "opus" => Opus,
+            "aif" | "aiff" | "aifc" => Aiff,
             "mp4" | "m4v" => Mp4,
             "mov" | "qt" => Mov,
             "mkv" => Mkv,
@@ -185,7 +190,14 @@ impl Format {
 pub fn detect(path: &Path) -> std::io::Result<Option<Format>> {
     let mut head = [0u8; 8192];
     let n = File::open(path)?.read(&mut head)?;
-    Ok(detect_bytes(&head[..n]).or_else(|| detect_extension(path)))
+    let by_signature = detect_bytes(&head[..n]);
+    let by_extension = detect_extension(path);
+    Ok(match (by_signature, by_extension) {
+        // Opus lives in an Ogg container: the signature alone cannot tell them apart.
+        (Some(Format::Ogg), Some(Format::Opus)) => Some(Format::Opus),
+        (Some(f), _) => Some(f),
+        (None, ext) => ext,
+    })
 }
 
 pub fn detect_bytes(bytes: &[u8]) -> Option<Format> {

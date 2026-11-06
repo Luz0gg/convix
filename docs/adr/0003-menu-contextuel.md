@@ -6,8 +6,8 @@
 Le chef de projet veut convertir depuis l'Explorateur sans ouvrir l'app, dès la V1.
 
 ## Décision
-- Menu en cascade classique sous `HKCU\Software\Classes\SystemFileAssociations\.<ext>\shell\ConvertIO`, sans droits admin, généré depuis le registre des opérations.
-- Commande : `ConvertIO.exe --op <operation-id> "<fichier>"`, regroupée par le plugin `single-instance` quand plusieurs fichiers sont sélectionnés.
+- Menu en cascade classique sous `HKCU\Software\Classes\SystemFileAssociations\.<ext>\shell\Convix`, sans droits admin, généré depuis le registre des opérations.
+- Commande : `Convix.exe --op <operation-id> "<fichier>"`, regroupée par le plugin `single-instance` quand plusieurs fichiers sont sélectionnés.
 - Interrupteur dans les réglages + nettoyage à la désinstallation.
 
 ## Conséquences

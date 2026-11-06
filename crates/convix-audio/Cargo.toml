@@ -1,10 +1,10 @@
 [package]
-name = "convertio-audio"
-description = "ConvertIO audio converter (drives the ffmpeg module)"
+name = "convix-audio"
+description = "Convix audio converter (drives the ffmpeg module)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
 [dependencies]
-convertio-core.workspace = true
+convix-core.workspace = true

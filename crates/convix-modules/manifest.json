@@ -1,0 +1,20 @@
+[
+  {
+    "id": "ffmpeg",
+    "name": "FFmpeg",
+    "version": "9.0.2",
+    "license": "GPL-3.0 (build gyan.dev)",
+    "homepage": "https://www.gyan.dev/ffmpeg/builds/",
+    "assets": [
+      {
+        "target": "x86_64-pc-windows-msvc",
+        "url": "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.7z",
+        "sha256": "4705843ccaaf54257c16ad90f3e952ece33c17df964ecf7bfdbb0f49c7171077",
+        "size": 35430500,
+        "archive": "7z",
+        "entry": "ffmpeg-9.0.2-essentials_build/bin/ffmpeg.exe",
+        "files": ["ffmpeg-9.0.2-essentials_build/LICENSE"]
+      }
+    ]
+  }
+]

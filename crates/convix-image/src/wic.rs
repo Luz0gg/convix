@@ -3,7 +3,7 @@
 //! Requires the free Store codecs: "HEIF Image Extensions" (+ "HEVC Video Extensions")
 //! for HEIC, "AV1 Video Extension" for AVIF. Many Windows 11 PCs already have them.
 
-use convertio_core::{Error, Format, Result};
+use convix_core::{Error, Format, Result};
 use image::{DynamicImage, RgbaImage, metadata::Orientation};
 use std::path::Path;
 use windows::{

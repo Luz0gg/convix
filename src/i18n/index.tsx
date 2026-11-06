@@ -13,7 +13,7 @@ type T = (key: string, params?: Params) => string;
 
 const I18nContext = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: T } | null>(null);
 
-const STORAGE_KEY = "convertio.lang";
+const STORAGE_KEY = "convix.lang";
 
 function initialLang(): Lang {
   try {

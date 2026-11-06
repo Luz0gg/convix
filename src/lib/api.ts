@@ -1,6 +1,6 @@
 // Single entry point to the Rust side. Components never call `invoke` directly.
 import { invoke } from "@tauri-apps/api/core";
-import type { FileInfo, JobEvent, LaunchRequest, ModuleStatus, OptionValues, Settings } from "./types";
+import type { FileInfo, JobEvent, LaunchRequest, ModuleInfo, OptionValues, Settings } from "./types";
 
 export const api = {
   appInfo: () => invoke<{ version: string }>("app_info"),
@@ -19,7 +19,11 @@ export const api = {
   cancelBatch: (batchId: string) => invoke<void>("cancel_batch", { batchId }),
   thumbnail: (path: string) => invoke<ArrayBuffer>("thumbnail", { path }),
   rememberOptions: (operationId: string, options: OptionValues) => invoke<void>("remember_options", { operationId, options }),
-  moduleStatus: (id: string) => invoke<ModuleStatus>("module_status", { id }),
+  moduleList: () => invoke<ModuleInfo[]>("module_list"),
+  /** Progress arrives as `module-progress` events. */
+  installModule: (id: string) => invoke<ModuleInfo[]>("install_module", { id }),
+  cancelModuleInstall: (id: string) => invoke<void>("cancel_batch", { batchId: `module:${id}` }),
+  removeModule: (id: string) => invoke<ModuleInfo[]>("remove_module", { id }),
 };
 
 /** Canonical extension per format (keep in sync with `Format::extension` in Rust). */
@@ -28,7 +32,8 @@ export const ext = (format: string) => (format === "jpeg" ? "jpg" : format);
 export const FORMAT_LABELS: Record<string, string> = {
   png: "PNG", jpeg: "JPEG", webp: "WebP", avif: "AVIF", gif: "GIF", bmp: "BMP", tiff: "TIFF", ico: "ICO",
   tga: "TGA", svg: "SVG", heic: "HEIC",
-  mp3: "MP3", wav: "WAV", flac: "FLAC", aac: "AAC", m4a: "M4A", ogg: "OGG", opus: "Opus", pdf: "PDF",
+  mp3: "MP3", wav: "WAV", flac: "FLAC", aac: "AAC", m4a: "M4A", ogg: "OGG", opus: "Opus", aiff: "AIFF",
+  mp4: "MP4", mov: "MOV", mkv: "MKV", webm: "WebM", avi: "AVI", pdf: "PDF",
 };
 
 export function formatSize(bytes: number): string {
@@ -50,7 +55,7 @@ export const dirName = (path: string) => path.replace(/[\\/][^\\/]*$/, "");
 export function rememberedOptions(opId: string, specs: { id: string; default: unknown }[]): OptionValues {
   const defaults = Object.fromEntries(specs.map((s) => [s.id, s.default ?? null])) as OptionValues;
   try {
-    const saved = JSON.parse(localStorage.getItem(`convertio.opts.${opId}`) ?? "null");
+    const saved = JSON.parse(localStorage.getItem(`convix.opts.${opId}`) ?? "null");
     if (saved && typeof saved === "object") {
       for (const key of Object.keys(defaults)) if (key in saved) defaults[key] = saved[key];
     }
@@ -62,7 +67,7 @@ export function rememberedOptions(opId: string, specs: { id: string; default: un
 
 export function rememberOptions(opId: string, values: OptionValues) {
   try {
-    localStorage.setItem(`convertio.opts.${opId}`, JSON.stringify(values));
+    localStorage.setItem(`convix.opts.${opId}`, JSON.stringify(values));
   } catch {
     /* ignore */
   }

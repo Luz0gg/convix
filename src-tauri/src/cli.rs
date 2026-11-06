@@ -1,7 +1,7 @@
-//! Command line: `ConvertIO.exe [--op <operation-id>] <file>...`
+//! Command line: `Convix.exe [--op <operation-id>] <file>...`
 //!
-//! Used by the Explorer context menu ("ConvertIO › Convertir en PNG" runs
-//! `ConvertIO.exe --op image.convert.png "C:\…\photo.webp"`). Without `--op`, the files are
+//! Used by the Explorer context menu ("Convix › Convertir en PNG" runs
+//! `Convix.exe --op image.convert.png "C:\…\photo.webp"`). Without `--op`, the files are
 //! simply opened in the window.
 
 use serde::Serialize;

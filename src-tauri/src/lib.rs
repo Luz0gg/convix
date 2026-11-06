@@ -1,4 +1,4 @@
-//! Tauri shell: wires the engine (`convertio-core` + converter crates) to the window.
+//! Tauri shell: wires the engine (`convix-core` + converter crates) to the window.
 //! Keep logic out of here — it belongs in the crates, where it is testable without a UI.
 
 mod cli;
@@ -9,8 +9,8 @@ mod quiet;
 mod settings;
 mod shell_integration;
 
-use convertio_core::{CancelToken, Registry};
-use convertio_modules::ModuleManager;
+use convix_core::{CancelToken, Registry};
+use convix_modules::ModuleManager;
 use settings::Settings;
 use std::{
     collections::HashMap,
@@ -37,11 +37,21 @@ pub struct AppState {
 
 fn build_registry() -> Registry {
     let mut r = Registry::new();
-    r.register(convertio_image::ImageConverter);
+    r.register(convix_image::ImageConverter);
+    r.register(convix_audio::AudioConverter);
     // Registered once implemented, so the UI never offers actions that can't run yet:
-    // Phase 2: r.register(convertio_audio::AudioConverter);
-    // Phase 3: r.register(convertio_pdf::PdfConverter);
+    // Phase 3: r.register(convix_pdf::PdfConverter);
     r
+}
+
+/// Rewrite the Explorer menu (exe path, language, installed modules may have changed).
+/// Not in dev builds: they would register target\debug\convix.exe.
+pub(crate) fn refresh_shell_menu(state: &AppState) {
+    let settings = state.settings.read().unwrap().clone();
+    if settings.shell_integration && !cfg!(debug_assertions) {
+        let (registry, modules) = (state.registry.clone(), state.modules.clone());
+        std::thread::spawn(move || shell_integration::install(&registry, &settings.language, &|id| modules.locate(id).is_some()));
+    }
 }
 
 fn show_main_window(app: &AppHandle) {
@@ -85,13 +95,6 @@ pub fn run() {
             let settings = settings::load(&settings_path);
             let registry = build_registry();
 
-            // Refresh the Explorer menu (the exe path changes after an update).
-            // Not in dev builds: they would register target\debug\convertio.exe.
-            if settings.shell_integration && !cfg!(debug_assertions) {
-                let (registry, lang) = (registry.clone(), settings.language.clone());
-                std::thread::spawn(move || shell_integration::install(&registry, &lang));
-            }
-
             // Right-click › "Convertir en PNG": convert in the background, no window.
             let launch = cli::parse(std::env::args().skip(1), None);
             let is_quiet = settings.quiet_context_menu && launch.as_ref().is_some_and(|r| r.operation.is_some());
@@ -113,6 +116,8 @@ pub fn run() {
                 pending_launch: Mutex::new(pending_launch),
                 quiet: Mutex::new(quiet_state),
             });
+            // The exe path changes after an update: keep the Explorer menu pointing at us.
+            refresh_shell_menu(&app.state::<AppState>());
             let early = std::mem::take(&mut *EARLY_LAUNCHES.lock().unwrap());
             for (argv, cwd) in early {
                 on_second_instance(app.handle(), argv, cwd);
@@ -137,8 +142,10 @@ pub fn run() {
             commands::run_batch,
             commands::cancel_batch,
             commands::remember_options,
-            commands::module_status,
+            commands::module_list,
+            commands::install_module,
+            commands::remove_module,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running ConvertIO");
+        .expect("error while running Convix");
 }

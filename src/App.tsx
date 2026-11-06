@@ -10,8 +10,12 @@ import { useFileDrop } from "./features/drop/useFileDrop";
 import { BatchBar } from "./features/files/BatchBar";
 import { FileCard } from "./features/files/FileCard";
 import { SettingsPanel } from "./features/settings/SettingsPanel";
+import { ModulePrompt } from "./features/modules/ModulePrompt";
+import { useModules } from "./features/modules/modules";
 
 type Toast = { kind: "ok" | "error"; text: string };
+/** An action waiting for a module download (FFmpeg…). */
+type PendingRun = { moduleId: string; op: OperationDescriptor; targets: FileInfo[]; options: OptionValues };
 /** Which options panel is open: on one file (its path) or on the batch bar. */
 type Selection = { scope: string; op: OperationDescriptor } | null;
 const BATCH = "__batch__";
@@ -25,6 +29,8 @@ export default function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [pendingRun, setPendingRun] = useState<PendingRun | null>(null);
+  const { modules, missingFor } = useModules();
   const settingsRef = useRef<Settings | null>(null);
   settingsRef.current = settings;
 
@@ -80,9 +86,17 @@ export default function App() {
 
   // ---- run an operation on one or many files ----
   const runOp = useCallback(
-    async (op: OperationDescriptor, targets: FileInfo[], options: OptionValues) => {
+    async (op: OperationDescriptor, targets: FileInfo[], options: OptionValues, moduleJustInstalled = false) => {
       const compatible = targets.filter((f) => supports(f, op.id));
       if (compatible.length === 0) return;
+
+      // Needs a module first (audio → FFmpeg): offer the download, then run.
+      const missing = missingFor(op)[0];
+      if (missing && !moduleJustInstalled) {
+        setSelection(null);
+        setPendingRun({ moduleId: missing.id, op, targets: compatible, options });
+        return;
+      }
 
       let outputDir: string | null = null;
       let outputPath: string | null = null;
@@ -125,7 +139,7 @@ export default function App() {
         setRunning((r) => r.filter((id) => id !== batchId));
       }
     },
-    [t],
+    [t, missingFor],
   );
 
   // ---- Explorer context menu: files (and maybe an operation) passed at launch ----
@@ -159,7 +173,7 @@ export default function App() {
       <header className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold">
-            Convert<span className="text-accent">IO</span>
+            Conv<span className="text-accent">ix</span>
           </h1>
           <p className="text-sm text-muted">{t("app.tagline")}</p>
         </div>
@@ -219,6 +233,18 @@ export default function App() {
       )}
 
       {showSettings && settings && <SettingsPanel settings={settings} onChange={changeSettings} onClose={() => setShowSettings(false)} />}
+
+      {pendingRun && modules.find((m) => m.id === pendingRun.moduleId) && (
+        <ModulePrompt
+          module={modules.find((m) => m.id === pendingRun.moduleId)!}
+          onClose={() => setPendingRun(null)}
+          onInstalled={() => {
+            const { op, targets, options } = pendingRun;
+            setPendingRun(null);
+            runOp(op, targets, options, true);
+          }}
+        />
+      )}
 
       {toast && (
         <div

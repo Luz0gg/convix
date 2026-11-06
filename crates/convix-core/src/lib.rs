@@ -1,4 +1,4 @@
-//! ConvertIO engine.
+//! Convix engine.
 //!
 //! Everything the UI can do goes through this crate:
 //! 1. [`format::detect`] identifies a dropped file (magic bytes first, extension as fallback).

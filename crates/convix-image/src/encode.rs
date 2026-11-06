@@ -1,7 +1,7 @@
 //! Writing images. Each output format uses the best available encoder.
 
 use crate::decode::img_err;
-use convertio_core::{Error, Format, Result};
+use convix_core::{Error, Format, Result};
 use image::{
     DynamicImage, ExtendedColorType, GenericImageView, ImageEncoder, ImageFormat, ImageResult,
     RgbImage, RgbaImage,

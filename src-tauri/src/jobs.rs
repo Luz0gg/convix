@@ -3,10 +3,10 @@
 //! a crash on one file take down the others.
 
 use crate::settings::Settings;
-use convertio_core::{
+use convix_core::{
     CancelToken, Error, Format, JobContext, OptionValues, OutputPolicy, Registry, format, output,
 };
-use convertio_modules::ModuleManager;
+use convix_modules::ModuleManager;
 use rayon::prelude::*;
 use serde::Serialize;
 use std::{
@@ -36,6 +36,10 @@ pub struct JobEvent {
     pub input_size: u64,
     pub output_size: u64,
     pub error: Option<String>,
+    /// 0.0 → 1.0 while running, for converters that report it (audio via FFmpeg…).
+    pub progress: Option<f32>,
+    /// Machine-readable error, e.g. `"moduleMissing:ffmpeg"`, so the UI can react.
+    pub error_code: Option<String>,
 }
 
 pub struct BatchRequest {
@@ -89,6 +93,8 @@ impl Runner {
                     input_size: size_of(input),
                     output_size: 0,
                     error: None,
+                    progress: None,
+                    error_code: None,
                 };
                 if cancel.is_cancelled() {
                     let ev = JobEvent { status: JobStatus::Cancelled, ..base };
@@ -97,7 +103,16 @@ impl Runner {
                 }
                 emit(base.clone());
 
-                let ev = match self.run_one(req, input, &policy, explicit, cancel) {
+                // Live progress, throttled to whole percents so the UI isn't flooded.
+                let last_percent = std::sync::atomic::AtomicI32::new(-1);
+                let on_progress = |f: f32| {
+                    let percent = (f * 100.0) as i32;
+                    if last_percent.swap(percent, std::sync::atomic::Ordering::Relaxed) != percent {
+                        emit(JobEvent { progress: Some(f), ..base.clone() });
+                    }
+                };
+
+                let ev = match self.run_one(req, input, &policy, explicit, cancel, &on_progress) {
                     Ok(outputs) => JobEvent {
                         status: JobStatus::Done,
                         output_size: outputs.iter().map(|p| size_of(p)).sum(),
@@ -105,6 +120,12 @@ impl Runner {
                         ..base
                     },
                     Err(Error::Cancelled) => JobEvent { status: JobStatus::Cancelled, ..base },
+                    Err(Error::ModuleMissing(id)) => JobEvent {
+                        status: JobStatus::Failed,
+                        error: Some(format!("le module {id} n'est pas installé")),
+                        error_code: Some(format!("moduleMissing:{id}")),
+                        ..base
+                    },
                     Err(e) => JobEvent { status: JobStatus::Failed, error: Some(e.to_string()), ..base },
                 };
                 emit(ev.clone());
@@ -113,12 +134,24 @@ impl Runner {
             .collect()
     }
 
-    fn run_one(&self, req: &BatchRequest, input: &Path, policy: &OutputPolicy, explicit: Option<&Path>, cancel: &CancelToken) -> convertio_core::Result<Vec<PathBuf>> {
+    fn run_one(
+        &self,
+        req: &BatchRequest,
+        input: &Path,
+        policy: &OutputPolicy,
+        explicit: Option<&Path>,
+        cancel: &CancelToken,
+        on_progress: &(dyn Fn(f32) + Sync),
+    ) -> convix_core::Result<Vec<PathBuf>> {
         let in_fmt = format::detect(input)?.ok_or(Error::UnsupportedFormat)?;
         let op = self
             .registry
             .describe(in_fmt, &req.operation_id)
             .ok_or_else(|| Error::Failed(format!("action indisponible pour un fichier {}", in_fmt.label())))?;
+        // Before reserving an output name: no empty file left behind for a missing module.
+        if let Some(missing) = op.requires.iter().find(|id| self.modules.locate(id).is_none()) {
+            return Err(Error::ModuleMissing((*missing).to_owned()));
+        }
         let out_fmt = op.output.unwrap_or(in_fmt);
 
         let out = match explicit {
@@ -136,7 +169,7 @@ impl Runner {
             inputs: &inputs,
             output: out.clone(),
             options: &req.options,
-            progress: &|_f: f32| {},
+            progress: &|f: f32| on_progress(f),
             cancel,
             modules: &locate,
         };

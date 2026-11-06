@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { ModulesProvider } from "./features/modules/modules";
 import { I18nProvider } from "./i18n";
 import "./styles.css";
 
@@ -12,7 +13,9 @@ if (import.meta.env.DEV && !("__TAURI_INTERNALS__" in window)) {
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <I18nProvider>
-      <App />
+      <ModulesProvider>
+        <App />
+      </ModulesProvider>
     </I18nProvider>
   </React.StrictMode>,
 );

@@ -1,6 +1,6 @@
 [package]
-name = "convertio-core"
-description = "ConvertIO engine: formats, operations, converter registry, jobs"
+name = "convix-core"
+description = "Convix engine: formats, operations, converter registry, jobs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

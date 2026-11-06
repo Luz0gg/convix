@@ -1,6 +1,6 @@
 //! Reading images: raster formats via `image`, SVG via `resvg`.
 
-use convertio_core::{Error, Format, Result};
+use convix_core::{Error, Format, Result};
 use image::{DynamicImage, ImageDecoder, ImageReader, Limits, RgbaImage};
 use resvg::{tiny_skia, usvg};
 use std::{

@@ -6,7 +6,7 @@ import { groupByCategory } from "../../lib/ops";
 import type { OperationDescriptor } from "../../lib/types";
 import { OpButton } from "./OpButton";
 
-const PRIMARY_OUTPUTS = new Set(["png", "jpeg", "webp", "avif", "mp3", "wav", "pdf"]);
+const PRIMARY_OUTPUTS = new Set(["png", "jpeg", "webp", "avif", "mp3", "wav", "flac", "m4a", "pdf"]);
 
 export function OpGroups({
   ops,

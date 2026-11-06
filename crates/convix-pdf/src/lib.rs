@@ -1,7 +1,7 @@
 //! PDF tools. Merge/split/compress are pure Rust; rendering pages to images
 //! needs the `pdfium` module.
 
-use convertio_core::{
+use convix_core::{
     Converter, Error, Format, JobContext, MediaKind, OperationCategory, OperationDescriptor,
     OptionSpec, Result, operation::Choice,
 };

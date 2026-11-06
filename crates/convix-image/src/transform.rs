@@ -1,6 +1,6 @@
 //! Pixel-level operations: resizing and palette reduction.
 
-use convertio_core::{Error, Result};
+use convix_core::{Error, Result};
 use image::{DynamicImage, GenericImageView, imageops::FilterType};
 use rayon::prelude::*;
 

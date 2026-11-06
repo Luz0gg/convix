@@ -1,9 +1,9 @@
-# Architecture — ConvertIO
+# Architecture — Convix
 
 ## Vue d'ensemble
 
 ```
-┌──────────────────────────── ConvertIO.exe (Tauri) ────────────────────────────┐
+┌──────────────────────────── Convix.exe (Tauri) ────────────────────────────┐
 │                                                                                │
 │  Interface (React + TypeScript, src/)          Coquille (Rust, src-tauri/)     │
 │  ─────────────────────────────────             ─────────────────────────────   │
@@ -14,11 +14,11 @@
 │                                                         │                       │
 │                                    ┌────────────────────┴───────────────┐       │
 │                                    ▼                                    ▼       │
-│                     Moteur (crates/convertio-core)      Modules (crates/convertio-modules)
+│                     Moteur (crates/convix-core)      Modules (crates/convix-modules)
 │                     formats · détection · registre      téléchargement, checksum, │
 │                     opérations · sortie · jobs           emplacement de ffmpeg…   │
 │                          ▲        ▲        ▲                                     │
-│              convertio-image  convertio-audio  convertio-pdf   (+ futurs crates) │
+│              convix-image  convix-audio  convix-pdf   (+ futurs crates) │
 │              (Rust pur)       (pilote ffmpeg)   (lopdf + pdfium)                 │
 └────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -26,7 +26,7 @@
 ## Arborescence
 
 ```
-ConvertIO/
+Convix/
 ├── Cargo.toml                # workspace Rust (toutes les crates)
 ├── package.json              # interface (pnpm)
 ├── src/                      # INTERFACE React/TS
@@ -39,17 +39,17 @@ ConvertIO/
 │   ├── capabilities/         # permissions accordées à l'interface
 │   └── src/                  # lib.rs (démarrage), commands.rs, cli.rs, shell_integration.rs
 ├── crates/                   # MOTEUR, testable sans interface
-│   ├── convertio-core/       # formats, opérations, registre, sortie, annulation/progression
-│   ├── convertio-image/
-│   ├── convertio-audio/
-│   ├── convertio-pdf/
-│   └── convertio-modules/
+│   ├── convix-core/       # formats, opérations, registre, sortie, annulation/progression
+│   ├── convix-image/
+│   ├── convix-audio/
+│   ├── convix-pdf/
+│   └── convix-modules/
 └── docs/                     # cadrage, architecture, roadmap, formats, décisions (adr/)
 ```
 
 ## Le concept central : les « opérations décrites »
 
-Chaque convertisseur implémente le trait `Converter` (`crates/convertio-core/src/converter.rs`) :
+Chaque convertisseur implémente le trait `Converter` (`crates/convix-core/src/converter.rs`) :
 
 ```rust
 fn id(&self) -> &'static str;                                   // "image"
@@ -70,7 +70,7 @@ L'interface ne connaît rien aux images ou à l'audio : elle affiche les descrip
 
 ## Sortie des fichiers
 
-`output::resolve` + `OutputPolicy` : à côté de l'original (défaut), dossier fixe, ou chemin choisi dans une boîte « Enregistrer sous ». Jamais d'écrasement (`photo (1).png`). Les conversions écrivent d'abord dans un fichier temporaire puis renomment (pas de fichier à moitié écrit si ça plante) — *à implémenter en Phase 1*.
+`output::resolve` + `OutputPolicy` : à côté de l'original (défaut), dossier fixe, ou chemin choisi dans une boîte « Enregistrer sous ». Jamais d'écrasement (`photo (1).png`). Les conversions écrivent d'abord dans un fichier temporaire (`.part`) puis renomment : pas de fichier à moitié écrit si ça plante.
 
 ## Modules externes
 
@@ -78,23 +78,29 @@ Outils lourds non inclus dans l'installeur, téléchargés au premier besoin :
 
 | Module | Taille | Sert à | Licence |
 |---|---|---|---|
-| `ffmpeg` | ~80-130 Mo | audio (puis vidéo) | LGPL/GPL selon build |
+| `ffmpeg` | 34 Mo à télécharger (archive 7z), 105 Mo installé (`ffmpeg.exe` seul) | audio (puis vidéo) | GPL (build gyan.dev, lien officiel de ffmpeg.org) |
 | `pdfium` | ~5 Mo | rendu PDF → images | BSD/Apache |
 | *(futur)* `realesrgan` | ~50 Mo | upscale d'images IA | BSD |
 
-- Un **manifeste JSON** (hébergé dans le dépôt GitHub, branche `main`, `modules/manifest.json`) liste versions, URL, SHA-256 et taille par plateforme → on peut mettre à jour FFmpeg **sans publier une nouvelle version de l'app**.
-- Téléchargement → vérification SHA-256 → extraction dans `%LOCALAPPDATA%\io.github.luz0gg.convertio\modules\<id>\<version>\` → enregistrement dans `installed.json`. Un fichier dont le hash ne correspond pas est supprimé, jamais exécuté.
-- Une opération déclare `requires: ["ffmpeg"]` ; si le module manque, l'erreur `ModuleMissing` déclenche dans l'interface la proposition de téléchargement.
+- Un **manifeste JSON** compilé dans l'app (`crates/convix-modules/manifest.json`) liste, par plateforme : version, URL, SHA-256, taille et fichiers à garder. Pour passer à une nouvelle version de FFmpeg, on modifie ce fichier : elle arrive avec la mise à jour automatique de Convix. *(Plus tard, si besoin : un manifeste distant.)*
+- Étapes de l'installation :
+  1. Téléchargement avec `ureq` et le TLS de Windows (certificats du système, rien à compiler).
+  2. Vérification de la taille et de l'empreinte SHA-256.
+  3. Extraction 7z (`sevenz-rust2`, Rust pur) des **seuls** fichiers listés, dans `%LOCALAPPDATA%\io.github.luz0gg.convix\modules\<id>\<version>\`.
+  4. Enregistrement dans `installed.json` (écriture atomique), puis suppression des anciennes versions.
+- Un fichier dont l'empreinte ne correspond pas est supprimé, jamais extrait ni exécuté.
+- Une opération déclare `requires: ["ffmpeg"]`. Tant que le module manque, ses boutons portent ⬇. Au clic, l'interface propose le téléchargement puis lance l'action. Côté Rust, `jobs.rs` vérifie aussi, avant de réserver le nom de sortie (`errorCode: "moduleMissing:ffmpeg"`).
+- FFmpeg tourne sans fenêtre console (`CREATE_NO_WINDOW`) et lit `-progress pipe:1` pour afficher la vraie progression. Annuler arrête le processus. Il écrit dans `<sortie>.part`, puis renomme : jamais de fichier à moitié écrit.
 - Télécharger FFmpeg séparément (au lieu de le redistribuer dans notre installeur) simplifie aussi les obligations de licence.
 
 ## Clic droit dans l'Explorateur (V1)
 
-- Menu en cascade **ConvertIO ›** écrit dans `HKCU\Software\Classes\SystemFileAssociations\.<ext>\shell\ConvertIO` (pas besoin de droits admin), généré depuis le registre : 4 à 6 actions les plus utiles par format + « Ouvrir dans ConvertIO ».
-- Chaque entrée lance `ConvertIO.exe --op <operation-id> "<fichier>"`.
+- Menu en cascade **Convix ›** (images, sons, vidéos ; les entrées audio n'apparaissent qu'une fois FFmpeg installé) écrit dans `HKCU\Software\Classes\SystemFileAssociations\.<ext>\shell\Convix` (pas besoin de droits admin), généré depuis le registre : 4 à 6 actions les plus utiles par format + « Ouvrir dans Convix ».
+- Chaque entrée lance `Convix.exe --op <operation-id> "<fichier>"`.
 - **Instance unique** : si on lance l'action sur 20 fichiers, Windows démarre 20 processus ; le plugin `single-instance` les redirige tous vers la fenêtre déjà ouverte, qui les traite en lot.
 - Sous Windows 11, ce menu « classique » apparaît dans « Afficher plus d'options ». Une entrée directement dans le nouveau menu demande un composant COM + un package MSIX « sparse » : phase ultérieure.
 - Activable/désactivable dans les réglages ; nettoyé par le désinstalleur.
-- **Mode arrière-plan** (`src-tauri/src/quiet.rs`, activé par défaut) : la fenêtre est créée cachée ; lancé avec `--op`, ConvertIO convertit sans l'afficher, regroupe les fichiers transmis par les autres lancements, utilise les dernières options choisies dans l'app (`options.json`), affiche une notification Windows puis se ferme 1,5 s après le dernier fichier. Les lancements reçus pendant le démarrage sont mis en file (`EARLY_LAUNCHES`) pour ne rien perdre.
+- **Mode arrière-plan** (`src-tauri/src/quiet.rs`, activé par défaut) : la fenêtre est créée cachée ; lancé avec `--op`, Convix convertit sans l'afficher, regroupe les fichiers transmis par les autres lancements, utilise les dernières options choisies dans l'app (`options.json`), affiche une notification Windows puis se ferme 1,5 s après le dernier fichier. Les lancements reçus pendant le démarrage sont mis en file (`EARLY_LAUNCHES`) pour ne rien perdre.
 
 ## Mises à jour de l'application
 

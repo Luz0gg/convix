@@ -1,4 +1,4 @@
-# CLAUDE.md — instructions pour les sessions Claude sur ConvertIO
+# CLAUDE.md — instructions pour les sessions Claude sur Convix
 
 ## Rôles
 - L'utilisateur est **chef de projet**, ne code pas. Il décide ; Claude conçoit, code, explique en français simple.
@@ -9,14 +9,14 @@
 - **Pas de CI GitHub Actions** (pas de `.github/workflows/`) — économie de crédits. Voir `docs/adr/0004-pas-de-ci.md`.
 - Avant chaque commit/push : `cargo test --workspace` et `pnpm build` en local doivent passer.
 - Ne jamais committer de clé (signature updater : `*.key`, `.env` sont ignorés).
-- Ne jamais écraser un fichier utilisateur (utiliser `convertio_core::output::resolve`).
-- Le nom « ConvertIO » est un nom de code : le garder centralisé (`src-tauri/tauri.conf.json` → `productName`, `package.json`, `README.md`, titre dans `src/App.tsx`).
+- Ne jamais écraser un fichier utilisateur (utiliser `convix_core::output::resolve`).
+- Nom définitif : **Convix** (anciennement le nom de code ConvertIO). Le garder centralisé (`src-tauri/tauri.conf.json` → `productName`, `package.json`, `README.md`, titre dans `src/App.tsx`).
 - Tenir `docs/ROADMAP.md` à jour (✅/🔜/⬜) et noter toute nouvelle décision dans `docs/CADRAGE.md` ou un nouvel ADR.
 
 ## Carte du code
-- `crates/convertio-core` : formats, détection, `OperationDescriptor`/`OptionSpec`, trait `Converter`, `Registry`, sortie, annulation. **Toute la logique va dans les crates**, pas dans `src-tauri`.
-- `crates/convertio-{image,audio,pdf}` : un convertisseur chacun. Ajouter une conversion = ajouter un descripteur dans `operations_for` + le cas dans `run`. L'interface s'adapte seule.
-- `crates/convertio-modules` : modules externes (ffmpeg, pdfium) téléchargés à la demande.
+- `crates/convix-core` : formats, détection, `OperationDescriptor`/`OptionSpec`, trait `Converter`, `Registry`, sortie, annulation. **Toute la logique va dans les crates**, pas dans `src-tauri`.
+- `crates/convix-{image,audio,pdf}` : un convertisseur chacun. Ajouter une conversion = ajouter un descripteur dans `operations_for` + le cas dans `run`. L'interface s'adapte seule.
+- `crates/convix-modules` : modules externes (ffmpeg, pdfium) téléchargés à la demande. Liste + URL + SHA-256 dans `crates/convix-modules/manifest.json` (nouvelle version = recalculer l'empreinte). Une opération qui en dépend déclare `requires: ["ffmpeg"]` : l'UI propose le téléchargement toute seule.
 - `src-tauri/src` : `lib.rs` (démarrage, état), `commands.rs` (API pour l'UI), `cli.rs` (`--op <id> fichiers…`), `shell_integration.rs` (clic droit).
 - `src/` : React. Appels Rust **uniquement** via `src/lib/api.ts`. Types miroirs dans `src/lib/types.ts` (à garder synchronisés avec Rust). Textes **uniquement** via `t("clé")` avec la clé dans `src/i18n/fr.json` **et** `en.json`.
 - Les ids d'opération (`image.convert.png`) sont **stables** : presets et clic droit en dépendent. Ne pas les renommer.
@@ -28,7 +28,10 @@
 `pnpm dev` puis ouvrir http://localhost:1420 dans un navigateur : `src/dev/mockTauri.ts` simule la partie Rust (dev uniquement). Dans la console : `__mockDrop()` simule un glisser-déposer. Config prête dans `.claude/launch.json` (`ui-mock`).
 
 ## Tester la vraie chaîne sans glisser-déposer
-`pnpm tauri build --debug --no-bundle` puis `target\debug\convertio.exe --op image.convert.png "C:\...\photo.webp"` : c'est exactement ce que fait le clic droit.
+`pnpm tauri build --debug --no-bundle` puis `target\debug\convix.exe --op image.convert.png "C:\...\photo.webp"` : c'est exactement ce que fait le clic droit.
+
+## Tester avec le vrai FFmpeg
+`CONVIX_FFMPEG=<chemin de ffmpeg.exe> cargo test -p convix-audio` (conversions réelles vers chaque format) et `CONVIX_FFMPEG_7Z=<archive>.7z cargo test -p convix-modules` (extraction). Sans ces variables, ces tests sont sautés. Vrai téléchargement : `cargo test -p convix-modules -- --ignored`.
 
 ## Commandes
 - `pnpm app:dev` — app en développement

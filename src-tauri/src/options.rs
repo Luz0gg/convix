@@ -1,6 +1,6 @@
 //! Last options used per operation (`options.json` in the config folder).
 
-use convertio_core::OptionValues;
+use convix_core::OptionValues;
 use std::{collections::HashMap, path::Path};
 
 pub fn load_all(path: &Path) -> HashMap<String, OptionValues> {

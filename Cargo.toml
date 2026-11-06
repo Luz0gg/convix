@@ -7,15 +7,15 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 authors = ["Luz0gg"]
-repository = "https://github.com/Luz0gg/convertio"
+repository = "https://github.com/Luz0gg/convix"
 
 [workspace.dependencies]
 # Internal crates
-convertio-core = { path = "crates/convertio-core" }
-convertio-image = { path = "crates/convertio-image" }
-convertio-audio = { path = "crates/convertio-audio" }
-convertio-pdf = { path = "crates/convertio-pdf" }
-convertio-modules = { path = "crates/convertio-modules" }
+convix-core = { path = "crates/convix-core" }
+convix-image = { path = "crates/convix-image" }
+convix-audio = { path = "crates/convix-audio" }
+convix-pdf = { path = "crates/convix-pdf" }
+convix-modules = { path = "crates/convix-modules" }
 
 # Shared third-party
 serde = { version = "1", features = ["derive"] }

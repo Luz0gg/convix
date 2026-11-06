@@ -1,13 +1,13 @@
 [package]
-name = "convertio-image"
-description = "ConvertIO image converter (built in, no external module)"
+name = "convix-image"
+description = "Convix image converter (built in, no external module)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
 [dependencies]
-convertio-core.workspace = true
+convix-core.workspace = true
 
 # Decode/encode PNG, JPEG, GIF, BMP, TIFF, ICO, WebP, TGA
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "ico", "webp", "tga", "rayon"] }

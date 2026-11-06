@@ -1,4 +1,4 @@
-//! "Quiet" Explorer conversions: right-click › ConvertIO › Convertir en PNG converts in the
+//! "Quiet" Explorer conversions: right-click › Convix › Convertir en PNG converts in the
 //! background without showing the window, then shows one Windows notification.
 //!
 //! Selecting 30 files makes Explorer start 30 processes. The first one becomes the worker;
@@ -11,7 +11,7 @@ use crate::{
     jobs::{BatchRequest, JobEvent, JobStatus, Runner},
     options,
 };
-use convertio_core::CancelToken;
+use convix_core::CancelToken;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_notification::NotificationExt;
@@ -88,7 +88,7 @@ pub fn run(app: AppHandle) {
     }
 
     let lang = state.settings.read().unwrap().language.clone();
-    let _ = app.notification().builder().title("ConvertIO").body(summary(&results, &lang)).show();
+    let _ = app.notification().builder().title("Convix").body(summary(&results, &lang)).show();
 
     if !state.quiet.lock().unwrap().keep_open {
         std::thread::sleep(Duration::from_millis(400)); // let the notification reach the OS

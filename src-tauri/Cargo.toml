@@ -1,6 +1,6 @@
 [package]
-name = "convertio"
-description = "ConvertIO — drag, drop, convert."
+name = "convix"
+description = "Convix — drag, drop, convert."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,18 +8,18 @@ authors.workspace = true
 repository.workspace = true
 
 [lib]
-name = "convertio_lib"
+name = "convix_lib"
 crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-convertio-core.workspace = true
-convertio-image.workspace = true
-convertio-audio.workspace = true
-convertio-pdf.workspace = true
-convertio-modules.workspace = true
+convix-core.workspace = true
+convix-image.workspace = true
+convix-audio.workspace = true
+convix-pdf.workspace = true
+convix-modules.workspace = true
 
 serde.workspace = true
 serde_json.workspace = true

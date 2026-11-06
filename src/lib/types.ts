@@ -1,9 +1,9 @@
-// Mirrors of the Rust types sent over IPC (crates/convertio-core, src-tauri/src).
+// Mirrors of the Rust types sent over IPC (crates/convix-core, src-tauri/src).
 // TODO: generate automatically (ts-rs / specta) once the API stabilizes.
 
 export type Format =
   | "png" | "jpeg" | "webp" | "avif" | "gif" | "bmp" | "tiff" | "ico" | "heic" | "svg" | "tga"
-  | "mp3" | "wav" | "flac" | "aac" | "m4a" | "ogg" | "opus"
+  | "mp3" | "wav" | "flac" | "aac" | "m4a" | "ogg" | "opus" | "aiff"
   | "mp4" | "mov" | "mkv" | "webm" | "avi"
   | "pdf";
 
@@ -76,9 +76,32 @@ export interface JobEvent {
   inputSize: number;
   outputSize: number;
   error: string | null;
+  /** 0 → 1 while running, for conversions that report it (audio). */
+  progress: number | null;
+  /** e.g. "moduleMissing:ffmpeg". */
+  errorCode: string | null;
 }
 
 export type ModuleStatus =
   | { state: "notInstalled" }
   | { state: "installed"; version: string; path: string }
   | { state: "updateAvailable"; installed: string; latest: string; path: string };
+
+export interface ModuleInfo {
+  id: string;
+  name: string;
+  version: string;
+  license: string;
+  homepage: string;
+  downloadSize: number;
+  status: ModuleStatus;
+}
+
+export type InstallPhase = "downloading" | "verifying" | "extracting";
+
+export interface ModuleProgress {
+  id: string;
+  phase: InstallPhase;
+  done: number;
+  total: number;
+}

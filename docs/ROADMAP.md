@@ -1,4 +1,4 @@
-# Roadmap — ConvertIO
+# Roadmap — Convix
 
 Chaque phase se termine par une version utilisable. ✅ fait · 🔜 en cours · ⬜ à faire
 
@@ -20,7 +20,7 @@ Chaque phase se termine par une version utilisable. ✅ fait · 🔜 en cours ·
 - ✅ Résultat : taille avant/après, gain en %, bouton « Afficher »
 - ✅ Actions « Pour tous les fichiers » quand plusieurs fichiers sont déposés
 - ✅ Réglages persistants : dossier de sortie (à côté / fixe / demander), langue, thème
-- ✅ **Clic droit Explorateur** (HKCU, cascade « ConvertIO › … ») + exécution directe de `--op` + nettoyage à la désinstallation
+- ✅ **Clic droit Explorateur** (HKCU, cascade « Convix › … ») + exécution directe de `--op` + nettoyage à la désinstallation
 - ✅ Glisser un dossier entier (récursif, 5000 fichiers max)
 - 🔜 Lecture HEIC (photos iPhone) et AVIF via les codecs Windows (WIC) — codé, **à tester sur une vraie photo iPhone** (impossible depuis la session de Claude)
 - ✅ GIF / WebP / APNG animés : animation conservée vers GIF et WebP (option « Garder l'animation »)
@@ -30,12 +30,18 @@ Chaque phase se termine par une version utilisable. ✅ fait · 🔜 en cours ·
 - ⬜ Conversion des profils couleur vers sRGB pour WebP/AVIF (aujourd'hui le profil est perdu)
 - ⬜ Redimensionner un GIF animé (aujourd'hui : première image)
 
-## Phase 2 — Modules & audio ⬜
-- ⬜ Gestionnaire de modules : manifeste, téléchargement, SHA-256, extraction, mise à jour
-- ⬜ Écran « Modules » (installé / à télécharger / mise à jour dispo)
-- ⬜ Audio via FFmpeg : MP3, WAV, FLAC, AAC, M4A, OGG, Opus, débit, fréquence, normalisation (loudnorm)
-- ⬜ Extraction audio depuis une vidéo
-- ⬜ Progression FFmpeg réelle (lecture de `-progress`)
+## Phase 2 — Modules & audio 🔜 (cœur livré le 2026-11-06)
+- ✅ Gestionnaire de modules : manifeste intégré, téléchargement (TLS de Windows), SHA-256, extraction 7z, suppression des anciennes versions
+- ✅ Module FFmpeg 9.0.2 (build gyan.dev, 34 Mo) — téléchargement réel testé
+- ✅ Fenêtre « Télécharger FFmpeg ? » au premier besoin, puis l'action demandée se lance seule
+- ✅ Section « Modules » dans les Réglages (installer, mettre à jour, supprimer)
+- ✅ Audio : MP3, WAV, FLAC, M4A, AAC, OGG, Opus, AIFF ; débit, fréquence, précision 16/24 bits (« comme l'original » par défaut), normalisation du volume (−14 / −16 / −23 LUFS)
+- ✅ Extraction audio depuis une vidéo (MP4, MOV, MKV, WebM, AVI)
+- ✅ Progression réelle (lecture de `-progress`), annulation (le processus est arrêté)
+- ✅ Clic droit sur les sons et vidéos (apparaît une fois FFmpeg installé)
+- 🔜 **Conversion réelle à valider** : le code et les tests sont prêts, mais la session de Claude n'a pas eu le droit d'exécuter FFmpeg
+- ⬜ Extraire l'audio sans réencoder (copie directe de la piste)
+- ⬜ Garder la pochette des MP3/M4A
 
 ## Phase 3 — PDF ⬜
 - ⬜ Fusion, séparation, compression (lopdf)
@@ -45,7 +51,7 @@ Chaque phase se termine par une version utilisable. ✅ fait · 🔜 en cours ·
 ## Phase 4 — Livraison ⬜
 - ⬜ Clé de signature des mises à jour + `tauri-plugin-updater` + `latest.json`
 - ⬜ Script de release local (build + `gh release create`), `docs/RELEASE.md`
-- ⬜ Icône et identité visuelle définitives, nom définitif
+- ⬜ Icône et identité visuelle définitives (nom définitif choisi : **Convix**)
 - ⬜ CSP stricte, journal d'erreurs local, écran « À propos »
 - 🎯 **V1.0**
 

@@ -34,7 +34,30 @@ function opsFor(format: string): OperationDescriptor[] {
   return ops;
 }
 
-let settings: Settings = { output: { mode: "nextToSource" }, language: "fr", theme: "system", shellIntegration: true, quietContextMenu: true };
+const AUDIO = ["mp3", "wav", "flac", "m4a", "aac", "ogg", "opus", "aiff"];
+const VIDEO = ["mp4", "mov", "mkv", "webm", "avi"];
+const audioOptions = (to: string): OperationDescriptor["options"] => [
+  ["wav", "flac", "aiff"].includes(to)
+    ? { type: "select", id: "bitDepth", labelKey: "opt.bitDepth", choices: [{ value: "source", label: "opt.keepSource", literal: false }, { value: "16", label: "16 bits", literal: true }, { value: "24", label: "24 bits", literal: true }], default: "source" }
+    : { type: "select", id: "bitrate", labelKey: "opt.bitrate", choices: ["320", "256", "192", "128", "96"].map((v) => ({ value: v, label: `${v} kbps`, literal: true })), default: "192" },
+  { type: "select", id: "loudness", labelKey: "opt.loudness", choices: ["off", "streaming", "podcast", "broadcast"].map((v) => ({ value: v, label: `opt.loudness.${v}`, literal: false })), default: "off" },
+];
+function audioOpsFor(format: string): OperationDescriptor[] {
+  const video = VIDEO.includes(format);
+  const outs = video ? ["mp3", "wav", "flac", "m4a"] : AUDIO.filter((f) => f !== format);
+  return outs.map((to) => ({
+    id: `audio.${video ? "extract" : "convert"}.${to}`, converter: "audio", category: video ? "extract" : "convert",
+    output: to as OperationDescriptor["output"], outputSuffix: null, labelKey: video ? "op.extractAudio" : "op.convert",
+    multiInput: false, requires: ["ffmpeg"], options: audioOptions(to),
+  }));
+}
+let ffmpegInstalled = false;
+const moduleList = () => [{
+  id: "ffmpeg", name: "FFmpeg", version: "9.0.2", license: "GPL-3.0 (build gyan.dev)", homepage: "https://www.gyan.dev/ffmpeg/builds/", downloadSize: 35_430_500,
+  status: ffmpegInstalled ? { state: "installed", version: "9.0.2", path: "C:\\ffmpeg.exe" } : { state: "notInstalled" },
+}];
+
+let settings: Settings ={ output: { mode: "nextToSource" }, language: "fr", theme: "system", shellIntegration: true, quietContextMenu: true };
 
 /** A colored gradient as a fake thumbnail. */
 async function fakeThumbnail(path: string): Promise<ArrayBuffer> {
@@ -75,12 +98,33 @@ async function invoke(cmd: string, args: Record<string, any> = {}): Promise<unkn
         const name = path.split(/[\\/]/).pop()!;
         const e = name.split(".").pop()!.toLowerCase();
         const format = (e === "jpg" ? "jpeg" : e) as FileInfo["format"];
-        return { path, name, size: 200_000 + name.length * 91_000, format, formatLabel: format!.toUpperCase(), kind: "image", operations: opsFor(format!), error: null };
+        const kind = AUDIO.includes(e) ? "audio" : VIDEO.includes(e) ? "video" : "image";
+        const operations = kind === "image" ? opsFor(format!) : audioOpsFor(e);
+        return { path, name, size: 200_000 + name.length * 91_000, format, formatLabel: format!.toUpperCase(), kind, operations, error: null };
       });
+    case "module_list":
+      return moduleList();
+    case "remove_module":
+      ffmpegInstalled = false;
+      return moduleList();
+    case "install_module": {
+      const total = 35_430_500;
+      for (let done = 0; done <= total; done += total / 25) {
+        emit("module-progress", { id: args.id, phase: "downloading", done: Math.round(done), total });
+        await new Promise((r) => setTimeout(r, 80));
+      }
+      emit("module-progress", { id: args.id, phase: "extracting", done: 0, total: 3 });
+      await new Promise((r) => setTimeout(r, 600));
+      ffmpegInstalled = true;
+      return moduleList();
+    }
     case "run_batch": {
       const events = (args.inputs as string[]).map((input, i) => {
-        const base = { batchId: args.batchId, input, outputs: [], inputSize: 900_000, outputSize: 0, error: null };
+        const base = { batchId: args.batchId, input, outputs: [], inputSize: 900_000, outputSize: 0, error: null, progress: null, errorCode: null };
         emit("job-event", { ...base, status: "running" });
+        if (String(args.operationId).startsWith("audio.")) {
+          for (let p = 1; p < 10; p++) setTimeout(() => emit("job-event", { ...base, status: "running", progress: p / 10 }), p * 70 + i * 300);
+        }
         const ok = i % 4 !== 3;
         const final = ok
           ? { ...base, status: "done", outputs: [input.replace(/\.[^.]+$/, "-min.png")], outputSize: 210_000 + i * 50_000 }
@@ -111,5 +155,5 @@ async function invoke(cmd: string, args: Record<string, any> = {}): Promise<unkn
 
 (window as any).__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} };
 
-(window as any).__mockDrop =(paths = ["C:\\Montage\\vignette.webp", "C:\\Montage\\logo.png", "C:\\Montage\\photo_iphone.jpg"]) =>
+(window as any).__mockDrop = (paths = ["C:\\Montage\\vignette.webp", "C:\\Montage\\interview.wav", "C:\\Montage\\rush_A001.mov"]) =>
   emit("tauri://drag-drop", { paths, position: { x: 0, y: 0 } });

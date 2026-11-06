@@ -1,6 +1,6 @@
-# ConvertIO
+# Convix
 
-> *Nom de code.* Convertisseur de fichiers **local**, léger et extensible pour Windows : glisse un fichier, ConvertIO te propose tout ce qu'il peut en faire.
+> Convertisseur de fichiers **local**, léger et extensible pour Windows : glisse un fichier, Convix te propose tout ce qu'il peut en faire.
 
 - 🖼️ **Images** — PNG, JPEG, WebP, AVIF, GIF, BMP, TIFF, ICO, compression avec/sans perte, redimensionnement
 - 🎧 **Audio** — MP3, WAV, FLAC, AAC, M4A, OGG, Opus, extraction audio depuis une vidéo
@@ -9,7 +9,7 @@
 - 🔒 **100 % local** : aucun fichier n'est envoyé sur Internet
 - 🧩 **Modules** téléchargés à la demande (FFmpeg, PDFium, plus tard upscale IA)
 
-**Statut :** Phase 0 terminée (cadrage + squelette). Voir la [roadmap](docs/ROADMAP.md).
+**Statut :** images complètes (Phase 1) ; audio via FFmpeg téléchargé au premier besoin (Phase 2, en validation) ; PDF ensuite (Phase 3). Voir la [roadmap](docs/ROADMAP.md).
 
 ## Documentation
 
