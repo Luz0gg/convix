@@ -67,6 +67,7 @@ Un **logiciel Windows léger** qui convertit n'importe quel fichier en un autre,
 | Signature de code payante | **Non.** On accepte l'avertissement SmartScreen à l'installation (« Informations complémentaires › Exécuter quand même »). Le clic droit natif Windows 11 (qui exige une signature) est donc abandonné : on garde le menu « Afficher plus d'options ». |
 | FFmpeg | Build **gyan.dev « essentials »** (lien officiel de ffmpeg.org), version figée (9.0.2) avec empreinte SHA-256, archive **7z de 34 Mo** (au lieu de 115 Mo en zip). Seul `ffmpeg.exe` est gardé. Téléchargé par l'utilisateur depuis GitHub (GyanD/codexffmpeg), jamais redistribué par nous. |
 | Audio | Précision « comme l'original » par défaut (un WAV 24 bits reste en 24 bits) ; normalisation au choix : −14 LUFS (streaming), −16 (podcast), −23 (TV). |
+| PDF → images | Moteur PDF **intégré à Windows** (`Windows.Data.Pdf`, celui des aperçus système) au lieu du module PDFium : rien à télécharger. Remplace la décision « module pdfium » de l'ADR 0002 pour ce cas. |
 
 ## 5. Questions encore ouvertes
 

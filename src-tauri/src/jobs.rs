@@ -74,82 +74,147 @@ fn output_extension(input: &Path, input_format: Format, output_format: Format) -
 }
 
 impl Runner {
-    pub fn run(&self, req: &BatchRequest, cancel: &CancelToken, emit: &(dyn Fn(JobEvent) + Sync)) -> Vec<JobEvent> {
+    pub fn run(
+        &self,
+        req: &BatchRequest,
+        cancel: &CancelToken,
+        emit: &(dyn Fn(JobEvent) + Sync),
+    ) -> Vec<JobEvent> {
         let policy = match (&req.output_dir, &self.settings.output) {
             (Some(dir), _) => OutputPolicy::FixedFolder { path: dir.clone() },
             (None, OutputPolicy::AskEachTime) => OutputPolicy::NextToSource,
             (None, p) => p.clone(),
         };
-        let explicit = req.output_path.as_deref().filter(|_| req.inputs.len() == 1);
+        // Merge PDFs, images → PDF…: one job takes every file and makes one result.
+        if self.is_combined(req) {
+            let explicit = req.output_path.as_deref();
+            return vec![self.run_job(req, &req.inputs, &policy, explicit, cancel, emit)];
+        }
 
+        let explicit = req.output_path.as_deref().filter(|_| req.inputs.len() == 1);
         req.inputs
             .par_iter()
             .map(|input| {
-                let base = JobEvent {
-                    batch_id: req.batch_id.clone(),
-                    input: input.clone(),
-                    status: JobStatus::Running,
-                    outputs: Vec::new(),
-                    input_size: size_of(input),
-                    output_size: 0,
-                    error: None,
-                    progress: None,
-                    error_code: None,
-                };
-                if cancel.is_cancelled() {
-                    let ev = JobEvent { status: JobStatus::Cancelled, ..base };
-                    emit(ev.clone());
-                    return ev;
-                }
-                emit(base.clone());
-
-                // Live progress, throttled to whole percents so the UI isn't flooded.
-                let last_percent = std::sync::atomic::AtomicI32::new(-1);
-                let on_progress = |f: f32| {
-                    let percent = (f * 100.0) as i32;
-                    if last_percent.swap(percent, std::sync::atomic::Ordering::Relaxed) != percent {
-                        emit(JobEvent { progress: Some(f), ..base.clone() });
-                    }
-                };
-
-                let ev = match self.run_one(req, input, &policy, explicit, cancel, &on_progress) {
-                    Ok(outputs) => JobEvent {
-                        status: JobStatus::Done,
-                        output_size: outputs.iter().map(|p| size_of(p)).sum(),
-                        outputs,
-                        ..base
-                    },
-                    Err(Error::Cancelled) => JobEvent { status: JobStatus::Cancelled, ..base },
-                    Err(Error::ModuleMissing(id)) => JobEvent {
-                        status: JobStatus::Failed,
-                        error: Some(format!("le module {id} n'est pas installé")),
-                        error_code: Some(format!("moduleMissing:{id}")),
-                        ..base
-                    },
-                    Err(e) => JobEvent { status: JobStatus::Failed, error: Some(e.to_string()), ..base },
-                };
-                emit(ev.clone());
-                ev
+                self.run_job(
+                    req,
+                    std::slice::from_ref(input),
+                    &policy,
+                    explicit,
+                    cancel,
+                    emit,
+                )
             })
             .collect()
+    }
+
+    pub fn is_combined(&self, req: &BatchRequest) -> bool {
+        let Some(first) = req.inputs.first() else {
+            return false;
+        };
+        format::detect(first)
+            .ok()
+            .flatten()
+            .and_then(|f| self.registry.describe(f, &req.operation_id))
+            .is_some_and(|op| op.multi_input)
+    }
+
+    /// One job: one file, or all the files of a combining operation (reported under the first).
+    fn run_job(
+        &self,
+        req: &BatchRequest,
+        inputs: &[PathBuf],
+        policy: &OutputPolicy,
+        explicit: Option<&Path>,
+        cancel: &CancelToken,
+        emit: &(dyn Fn(JobEvent) + Sync),
+    ) -> JobEvent {
+        let input = &inputs[0];
+        let base = JobEvent {
+            batch_id: req.batch_id.clone(),
+            input: input.clone(),
+            status: JobStatus::Running,
+            outputs: Vec::new(),
+            input_size: inputs.iter().map(|p| size_of(p)).sum(),
+            output_size: 0,
+            error: None,
+            progress: None,
+            error_code: None,
+        };
+        if cancel.is_cancelled() {
+            let ev = JobEvent {
+                status: JobStatus::Cancelled,
+                ..base
+            };
+            emit(ev.clone());
+            return ev;
+        }
+        emit(base.clone());
+
+        // Live progress, throttled to whole percents so the UI isn't flooded.
+        let last_percent = std::sync::atomic::AtomicI32::new(-1);
+        let on_progress = |f: f32| {
+            let percent = (f * 100.0) as i32;
+            if last_percent.swap(percent, std::sync::atomic::Ordering::Relaxed) != percent {
+                emit(JobEvent {
+                    progress: Some(f),
+                    ..base.clone()
+                });
+            }
+        };
+
+        let ev = match self.run_one(req, inputs, policy, explicit, cancel, &on_progress) {
+            Ok(outputs) => JobEvent {
+                status: JobStatus::Done,
+                output_size: outputs.iter().map(|p| size_of(p)).sum(),
+                outputs,
+                ..base
+            },
+            Err(Error::Cancelled) => JobEvent {
+                status: JobStatus::Cancelled,
+                ..base
+            },
+            Err(Error::ModuleMissing(id)) => JobEvent {
+                status: JobStatus::Failed,
+                error: Some(format!("le module {id} n'est pas installé")),
+                error_code: Some(format!("moduleMissing:{id}")),
+                ..base
+            },
+            Err(e) => JobEvent {
+                status: JobStatus::Failed,
+                error: Some(e.to_string()),
+                ..base
+            },
+        };
+        emit(ev.clone());
+        ev
     }
 
     fn run_one(
         &self,
         req: &BatchRequest,
-        input: &Path,
+        inputs: &[PathBuf],
         policy: &OutputPolicy,
         explicit: Option<&Path>,
         cancel: &CancelToken,
         on_progress: &(dyn Fn(f32) + Sync),
     ) -> convix_core::Result<Vec<PathBuf>> {
+        let input = inputs[0].as_path();
         let in_fmt = format::detect(input)?.ok_or(Error::UnsupportedFormat)?;
         let op = self
             .registry
             .describe(in_fmt, &req.operation_id)
-            .ok_or_else(|| Error::Failed(format!("action indisponible pour un fichier {}", in_fmt.label())))?;
+            .ok_or_else(|| {
+                Error::Failed(format!(
+                    "action indisponible pour un fichier {}",
+                    in_fmt.label()
+                ))
+            })?;
         // Before reserving an output name: no empty file left behind for a missing module.
-        if let Some(missing) = op.requires.iter().find(|id| self.modules.locate(id).is_none()) {
+        if let Some(missing) = op
+            .requires
+            .iter()
+            .find(|id| self.modules.locate(id).is_none())
+        {
             return Err(Error::ModuleMissing((*missing).to_owned()));
         }
         let out_fmt = op.output.unwrap_or(in_fmt);
@@ -162,11 +227,10 @@ impl Runner {
             }
         };
 
-        let inputs = [input.to_path_buf()];
         let locate = |id: &str| self.modules.locate(id);
         let ctx = JobContext {
             operation_id: &req.operation_id,
-            inputs: &inputs,
+            inputs,
             output: out.clone(),
             options: &req.options,
             progress: &|f: f32| on_progress(f),

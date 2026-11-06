@@ -32,7 +32,10 @@ export function JobStatusLine({ job }: { job: JobEvent }) {
   return (
     <div className="mt-3 flex items-center gap-2 rounded-lg bg-success/10 px-3 py-2 text-sm">
       <span className="text-success">✓</span>
-      <span className="min-w-0 flex-1 truncate" title={out}>{out ? fileName(out) : ""}</span>
+      <span className="min-w-0 flex-1 truncate" title={job.outputs.join("\n")}>
+        {out ? fileName(out) : ""}
+        {job.outputs.length > 1 && <span className="ml-1 text-xs text-muted">{t("job.moreFiles", { count: job.outputs.length - 1 })}</span>}
+      </span>
       <span className="shrink-0 text-xs text-muted">
         {formatSize(job.inputSize)} → {formatSize(job.outputSize)}
       </span>

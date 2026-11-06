@@ -21,6 +21,9 @@ pub fn remember(path: &Path, operation_id: &str, options: OptionValues) -> std::
         std::fs::create_dir_all(dir)?;
     }
     let tmp = path.with_extension("json.part");
-    std::fs::write(&tmp, serde_json::to_vec_pretty(&all).map_err(std::io::Error::other)?)?;
+    std::fs::write(
+        &tmp,
+        serde_json::to_vec_pretty(&all).map_err(std::io::Error::other)?,
+    )?;
     std::fs::rename(tmp, path)
 }

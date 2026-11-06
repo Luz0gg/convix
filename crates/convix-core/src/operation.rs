@@ -100,6 +100,13 @@ pub enum OptionSpec {
         choices: Vec<Choice>,
         default: &'static str,
     },
+    /// Free text, e.g. a page list "1-3, 5". Empty = the default behaviour.
+    #[serde(rename_all = "camelCase")]
+    Text {
+        id: &'static str,
+        label_key: &'static str,
+        placeholder_key: &'static str,
+    },
     #[serde(rename_all = "camelCase")]
     Number {
         id: &'static str,

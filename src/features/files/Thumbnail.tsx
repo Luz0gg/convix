@@ -9,7 +9,7 @@ const cache = new Map<string, string>(); // path → blob URL, kept for the sess
 export function Thumbnail({ file }: { file: FileInfo }) {
   const ref = useRef<HTMLDivElement>(null);
   const [url, setUrl] = useState(() => cache.get(file.path));
-  const canPreview = file.kind === "image" && file.operations.length > 0;
+  const canPreview = (file.kind === "image" || file.format === "pdf") && file.operations.length > 0;
 
   useEffect(() => {
     if (url || !canPreview || !ref.current) return;

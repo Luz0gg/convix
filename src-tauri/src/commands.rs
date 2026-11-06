@@ -24,7 +24,9 @@ pub struct AppInfo {
 
 #[tauri::command]
 pub fn app_info() -> AppInfo {
-    AppInfo { version: env!("CARGO_PKG_VERSION") }
+    AppInfo {
+        version: env!("CARGO_PKG_VERSION"),
+    }
 }
 
 /// Returns (once) the files passed on the command line at startup.
@@ -51,7 +53,9 @@ pub fn update_settings(state: State<'_, AppState>, settings: Settings) -> Result
     if menu_changed {
         if settings.shell_integration {
             let modules = state.modules.clone();
-            shell_integration::install(&state.registry, &settings.language, &|id| modules.locate(id).is_some())?;
+            shell_integration::install(&state.registry, &settings.language, &|id| {
+                modules.locate(id).is_some()
+            })?;
         } else {
             shell_integration::uninstall()?;
         }
@@ -82,7 +86,9 @@ fn expand(paths: Vec<PathBuf>) -> Vec<PathBuf> {
         if depth > 8 || out.len() >= MAX_FILES_FROM_FOLDER {
             return;
         }
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         let mut entries: Vec<_> = entries.flatten().map(|e| e.path()).collect();
         entries.sort();
         for p in entries {
@@ -95,27 +101,39 @@ fn expand(paths: Vec<PathBuf>) -> Vec<PathBuf> {
     }
     let mut out = Vec::new();
     for p in paths {
-        if p.is_dir() { walk(&p, &mut out, 0) } else { out.push(p) }
+        if p.is_dir() {
+            walk(&p, &mut out, 0)
+        } else {
+            out.push(p)
+        }
     }
     out
 }
 
 /// Detect each dropped file and list what can be done with it.
 #[tauri::command]
-pub async fn inspect_files(state: State<'_, AppState>, paths: Vec<PathBuf>) -> Result<Vec<FileInfo>, String> {
+pub async fn inspect_files(
+    state: State<'_, AppState>,
+    paths: Vec<PathBuf>,
+) -> Result<Vec<FileInfo>, String> {
     let registry = state.registry.clone();
     tauri::async_runtime::spawn_blocking(move || {
         expand(paths)
             .into_iter()
             .map(|path| {
-                let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
                 let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
                 let (format, error) = match format::detect(&path) {
                     Ok(f) => (f, None),
                     Err(e) => (None, Some(e.to_string())),
                 };
                 FileInfo {
-                    operations: format.map(|f| registry.operations_for(f)).unwrap_or_default(),
+                    operations: format
+                        .map(|f| registry.operations_for(f))
+                        .unwrap_or_default(),
                     format_label: format.map(Format::label),
                     kind: format.map(Format::kind),
                     format,
@@ -148,14 +166,25 @@ pub async fn run_batch(
     output_path: Option<PathBuf>,
 ) -> Result<Vec<JobEvent>, String> {
     let cancel = CancelToken::new();
-    state.batches.lock().unwrap().insert(batch_id.clone(), cancel.clone());
+    state
+        .batches
+        .lock()
+        .unwrap()
+        .insert(batch_id.clone(), cancel.clone());
 
     let runner = Runner {
         registry: state.registry.clone(),
         modules: state.modules.clone(),
         settings: state.settings.read().unwrap().clone(),
     };
-    let req = BatchRequest { batch_id: batch_id.clone(), operation_id, inputs, options, output_dir, output_path };
+    let req = BatchRequest {
+        batch_id: batch_id.clone(),
+        operation_id,
+        inputs,
+        options,
+        output_dir,
+        output_path,
+    };
     let token = cancel.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
         runner.run(&req, &token, &|ev| {
@@ -182,8 +211,17 @@ pub fn cancel_batch(state: State<'_, AppState>, batch_id: String) {
 pub async fn thumbnail(path: PathBuf) -> Result<tauri::ipc::Response, String> {
     static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
     tauri::async_runtime::spawn_blocking(move || {
-        let pool = POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().num_threads(3).build().expect("thumbnail pool"));
-        pool.install(|| convix_image::thumbnail(&path, 160))
+        let pool = POOL.get_or_init(|| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(3)
+                .build()
+                .expect("thumbnail pool")
+        });
+        pool.install(|| match format::detect_extension(&path) {
+            #[cfg(windows)]
+            Some(Format::Pdf) => convix_pdf::thumbnail(&path, 160),
+            _ => convix_image::thumbnail(&path, 160),
+        })
     })
     .await
     .map_err(|e| e.to_string())?
@@ -194,7 +232,11 @@ pub async fn thumbnail(path: PathBuf) -> Result<tauri::ipc::Response, String> {
 /// Remember the options used for an operation, so Explorer right-click conversions
 /// (which run without the window) use the same settings.
 #[tauri::command]
-pub fn remember_options(state: State<'_, AppState>, operation_id: String, options: OptionValues) -> Result<(), String> {
+pub fn remember_options(
+    state: State<'_, AppState>,
+    operation_id: String,
+    options: OptionValues,
+) -> Result<(), String> {
     crate::options::remember(&state.options_path, &operation_id, options).map_err(|e| e.to_string())
 }
 
@@ -223,7 +265,11 @@ pub fn module_list(state: State<'_, AppState>) -> Vec<ModuleInfo> {
 /// Download + verify + unpack a module. Progress arrives as `module-progress` events;
 /// cancel with `cancel_batch("module:<id>")`.
 #[tauri::command]
-pub async fn install_module(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<Vec<ModuleInfo>, String> {
+pub async fn install_module(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Vec<ModuleInfo>, String> {
     let cancel = CancelToken::new();
     {
         let mut batches = state.batches.lock().unwrap();
@@ -242,7 +288,13 @@ pub async fn install_module(app: AppHandle, state: State<'_, AppState>, id: Stri
             let mut last = last.lock().unwrap();
             if last.0 != Some(p.phase) || p.done >= last.1 + p.total / 200 || p.done == p.total {
                 *last = (Some(p.phase), p.done);
-                let _ = event_app.emit(MODULE_EVENT, ModuleProgressEvent { id: event_id.clone(), progress: p });
+                let _ = event_app.emit(
+                    MODULE_EVENT,
+                    ModuleProgressEvent {
+                        id: event_id.clone(),
+                        progress: p,
+                    },
+                );
             }
         };
         modules.install(&event_id, &progress, &|| cancel.is_cancelled())
@@ -250,7 +302,9 @@ pub async fn install_module(app: AppHandle, state: State<'_, AppState>, id: Stri
     .await;
     state.batches.lock().unwrap().remove(&install_key(&id));
 
-    result.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
+    result
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
     crate::refresh_shell_menu(&state); // audio entries appear in the Explorer menu
     Ok(state.modules.list())
 }

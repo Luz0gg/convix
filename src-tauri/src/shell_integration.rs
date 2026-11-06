@@ -18,6 +18,8 @@ pub const EXTENSIONS: &[&str] = &[
     "mp3", "wav", "flac", "m4a", "aac", "ogg", "opus", "aif", "aiff",
     // video: extract the audio
     "mp4", "m4v", "mov", "mkv", "webm", "avi",
+    // documents
+    "pdf",
 ];
 
 /// Tells whether an external module (ffmpeg…) is installed.
@@ -29,7 +31,12 @@ const VERB: &str = "Convix";
 const LEGACY_VERBS: &[&str] = &["ConvertIO"];
 
 /// (operation id, label) shown for a format, most useful first.
-pub fn menu_entries(registry: &Registry, format: Format, lang: &str, has_module: HasModule) -> Vec<(String, String)> {
+pub fn menu_entries(
+    registry: &Registry,
+    format: Format,
+    lang: &str,
+    has_module: HasModule,
+) -> Vec<(String, String)> {
     let fr = lang != "en";
     // Only actions that can run right now (an audio entry without FFmpeg would just fail).
     let ops: Vec<_> = registry
@@ -39,7 +46,11 @@ pub fn menu_entries(registry: &Registry, format: Format, lang: &str, has_module:
         .collect();
     let mut entries = Vec::new();
     let convert_label = |target: Format| {
-        if fr { format!("Convertir en {}", target.label()) } else { format!("Convert to {}", target.label()) }
+        if fr {
+            format!("Convertir en {}", target.label())
+        } else {
+            format!("Convert to {}", target.label())
+        }
     };
 
     for target in [Format::Png, Format::Jpeg, Format::Webp, Format::Ico] {
@@ -57,16 +68,36 @@ pub fn menu_entries(registry: &Registry, format: Format, lang: &str, has_module:
     for target in [Format::Mp3, Format::Wav] {
         let id = format!("audio.extract.{}", target.extension());
         if ops.iter().any(|o| o.id == id) {
-            let label = if fr { format!("Extraire l'audio ({})", target.label()) } else { format!("Extract audio ({})", target.label()) };
+            let label = if fr {
+                format!("Extraire l'audio ({})", target.label())
+            } else {
+                format!("Extract audio ({})", target.label())
+            };
             entries.push((id, label));
         }
     }
     for (id, fr_label, en_label) in [
-        ("image.compress.smaller", "Compresser (plus léger)", "Compress (smaller)"),
-        ("image.compress.lossless", "Compresser sans perte", "Compress losslessly"),
+        (
+            "image.compress.smaller",
+            "Compresser (plus léger)",
+            "Compress (smaller)",
+        ),
+        (
+            "image.compress.lossless",
+            "Compresser sans perte",
+            "Compress losslessly",
+        ),
+        ("pdf.fromImages", "Convertir en PDF", "Convert to PDF"),
+        ("pdf.compress", "Compresser le PDF", "Compress PDF"),
+        ("pdf.toImages.png", "Pages en PNG", "Pages to PNG"),
+        ("pdf.toImages.jpg", "Pages en JPEG", "Pages to JPEG"),
+        ("pdf.split", "Séparer les pages", "Split pages"),
     ] {
         if ops.iter().any(|o| o.id == id) {
-            entries.push((id.to_owned(), if fr { fr_label } else { en_label }.to_owned()));
+            entries.push((
+                id.to_owned(),
+                if fr { fr_label } else { en_label }.to_owned(),
+            ));
         }
     }
     entries
@@ -81,14 +112,25 @@ mod imp {
         e.to_string()
     }
 
-    pub fn install_at(root: &str, registry: &Registry, lang: &str, has_module: HasModule) -> Result<(), String> {
+    pub fn install_at(
+        root: &str,
+        registry: &Registry,
+        lang: &str,
+        has_module: HasModule,
+    ) -> Result<(), String> {
         let exe = std::env::current_exe().map_err(io)?;
         let exe = exe.to_string_lossy();
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        let open_label = if lang == "en" { "Open in Convix" } else { "Ouvrir dans Convix" };
+        let open_label = if lang == "en" {
+            "Open in Convix"
+        } else {
+            "Ouvrir dans Convix"
+        };
 
         for ext in EXTENSIONS {
-            let Some(format) = Format::from_extension(ext) else { continue };
+            let Some(format) = Format::from_extension(ext) else {
+                continue;
+            };
             let entries = menu_entries(registry, format, lang, has_module);
             let base_path = format!(r"{root}\.{ext}\shell\{VERB}");
             let _ = hkcu.delete_subkey_all(&base_path); // rebuild from scratch: exe path or labels may have changed
@@ -105,7 +147,10 @@ mod imp {
             base.set_value("SubCommands", &"").map_err(io)?; // = cascading menu from the `shell` subkey
 
             // Explorer sorts sub-verbs by key name: number them to keep our order.
-            let all = entries.iter().map(|(id, l)| (format!("--op {id} "), l.as_str())).chain([(String::new(), open_label)]);
+            let all = entries
+                .iter()
+                .map(|(id, l)| (format!("--op {id} "), l.as_str()))
+                .chain([(String::new(), open_label)]);
             for (i, (args, label)) in all.enumerate() {
                 let (verb, _) = base.create_subkey(format!(r"shell\{i:02}")).map_err(io)?;
                 verb.set_value("MUIVerb", &label).map_err(io)?;
@@ -114,7 +159,8 @@ mod imp {
                     verb.set_value("CommandFlags", &0x20u32).map_err(io)?; // separator before "Open in…"
                 }
                 let (cmd, _) = verb.create_subkey("command").map_err(io)?;
-                cmd.set_value("", &format!("\"{exe}\" {args}\"%1\"")).map_err(io)?;
+                cmd.set_value("", &format!("\"{exe}\" {args}\"%1\""))
+                    .map_err(io)?;
             }
         }
         Ok(())
@@ -167,21 +213,46 @@ mod tests {
 
         // Without FFmpeg: no audio menu at all.
         imp::install_at(&root, &registry, "fr", &|_| false).unwrap();
-        assert!(hkcu.open_subkey(format!(r"{root}\.mp3\shell\Convix")).is_err());
+        assert!(
+            hkcu.open_subkey(format!(r"{root}\.mp3\shell\Convix"))
+                .is_err()
+        );
 
         imp::install_at(&root, &registry, "fr", &|m| m == "ffmpeg").unwrap();
-        let base = hkcu.open_subkey(format!(r"{root}\.webp\shell\Convix")).unwrap();
-        let first: String = base.open_subkey(r"shell\00").unwrap().get_value("MUIVerb").unwrap();
+        let base = hkcu
+            .open_subkey(format!(r"{root}\.webp\shell\Convix"))
+            .unwrap();
+        let first: String = base
+            .open_subkey(r"shell\00")
+            .unwrap()
+            .get_value("MUIVerb")
+            .unwrap();
         assert_eq!(first, "Convertir en PNG");
-        let cmd: String = base.open_subkey(r"shell\00\command").unwrap().get_value("").unwrap();
+        let cmd: String = base
+            .open_subkey(r"shell\00\command")
+            .unwrap()
+            .get_value("")
+            .unwrap();
         assert!(cmd.contains("--op image.convert.png \"%1\""), "{cmd}");
-        let video = hkcu.open_subkey(format!(r"{root}\.mov\shell\Convix")).unwrap();
-        let first: String = video.open_subkey(r"shell\00").unwrap().get_value("MUIVerb").unwrap();
+        let video = hkcu
+            .open_subkey(format!(r"{root}\.mov\shell\Convix"))
+            .unwrap();
+        let first: String = video
+            .open_subkey(r"shell\00")
+            .unwrap()
+            .get_value("MUIVerb")
+            .unwrap();
         assert_eq!(first, "Extraire l'audio (MP3)");
 
         imp::uninstall_at(&root).unwrap();
-        assert!(hkcu.open_subkey(format!(r"{root}\.webp\shell\Convix")).is_err());
-        assert!(hkcu.open_subkey(format!(r"{root}\.mov\shell\Convix")).is_err());
+        assert!(
+            hkcu.open_subkey(format!(r"{root}\.webp\shell\Convix"))
+                .is_err()
+        );
+        assert!(
+            hkcu.open_subkey(format!(r"{root}\.mov\shell\Convix"))
+                .is_err()
+        );
         let _ = hkcu.delete_subkey_all(&root);
     }
 }

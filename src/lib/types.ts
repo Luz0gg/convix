@@ -21,6 +21,7 @@ export type OptionSpec =
   | { type: "slider"; id: string; labelKey: string; min: number; max: number; step: number; default: number; unit: string | null }
   | { type: "toggle"; id: string; labelKey: string; default: boolean }
   | { type: "select"; id: string; labelKey: string; choices: Choice[]; default: string }
+  | { type: "text"; id: string; labelKey: string; placeholderKey: string }
   | { type: "number"; id: string; labelKey: string; min: number | null; max: number | null; default: number | null; unit: string | null };
 
 export type OptionValues = Record<string, string | number | boolean | null>;

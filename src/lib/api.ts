@@ -52,7 +52,7 @@ export const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 export const dirName = (path: string) => path.replace(/[\\/][^\\/]*$/, "");
 
 /** Default values of an operation's options, overridden by what the user used last time. */
-export function rememberedOptions(opId: string, specs: { id: string; default: unknown }[]): OptionValues {
+export function rememberedOptions(opId: string, specs: { id: string; default?: unknown }[]): OptionValues {
   const defaults = Object.fromEntries(specs.map((s) => [s.id, s.default ?? null])) as OptionValues;
   try {
     const saved = JSON.parse(localStorage.getItem(`convix.opts.${opId}`) ?? "null");

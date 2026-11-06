@@ -8,7 +8,16 @@ authors.workspace = true
 
 [dependencies]
 convix-core.workspace = true
+convix-image.workspace = true
+lopdf = { version = "0.47", default-features = false }
 
-# Planned (Phase 3):
-# lopdf        — merge / split / structure-level compression (pure Rust)
-# pdfium-render — render pages to images (needs the `pdfium` module, ~5 MB)
+# Pages → images with the PDF renderer built into Windows (Windows.Data.Pdf): nothing to download.
+[target.'cfg(windows)'.dependencies]
+windows-future = "0.3"
+windows = { version = "0.62", features = [
+  "Foundation",
+  "Data_Pdf",
+  "Storage",
+  "Storage_Streams",
+  "Win32_System_Com",
+] }

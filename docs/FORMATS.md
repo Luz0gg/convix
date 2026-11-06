@@ -56,12 +56,15 @@ Source de vérité : le code (`crates/convix-*/src/lib.rs`, fonction `operations
 
 Pour toutes : fréquence (comme l'original / 48 / 44,1 kHz) et volume (inchangé, normalisé −14 LUFS streaming, −16 LUFS podcast, −23 LUFS TV). La normalisation garde la fréquence d'origine. Les tags (artiste, titre…) sont conservés, la vidéo et la pochette sont retirées. Seule la première piste audio est prise.
 
-## PDF — ⬜ Phase 3
+## PDF (intégré, aucun module) — ✅ Phase 3
 
-| Action | Module |
-|---|---|
-| PDF → PNG / JPEG (une image par page, 72/150/300 DPI) | `pdfium` |
-| Compresser | — |
-| Fusionner plusieurs PDF | — |
-| Séparer les pages | — |
-| Images → PDF | — |
+| Action | Résultat | Moteur |
+|---|---|---|
+| PDF → PNG / JPEG | une image par page : `doc-p01.png`, `doc-p02.png`… ; 72 / 150 / 300 DPI ; pages au choix | moteur PDF de Windows (`Windows.Data.Pdf`) |
+| Compresser | `doc-min.pdf` ; sans perte (nettoyage + flux compressés) / équilibrée (photos ≤ 2200 px, JPEG 75) / forte (≤ 1400 px, JPEG 60) ; jamais plus gros que l'original | lopdf + mozjpeg |
+| Séparer les pages | un PDF par page : `doc-p1.pdf`… ; toutes ou une liste | lopdf |
+| Extraire des pages | `doc-extrait.pdf` avec les pages choisies (ordre du document) | lopdf |
+| Fusionner plusieurs PDF | `<premier>-fusion.pdf`, dans l'ordre choisi ; les signets sont retirés | lopdf |
+| Images → PDF | une page par image ; A4 / Letter / taille de l'image, marges 1 cm ; JPEG intégrés tels quels, transparence gardée | lopdf |
+
+Listes de pages : `1-3, 5, 8-` (vide = toutes). Les listes de pages ne sont pas mémorisées d'une fois sur l'autre. PDF protégé par mot de passe : message clair, pas de traitement.

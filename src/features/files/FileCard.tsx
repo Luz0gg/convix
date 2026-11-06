@@ -22,6 +22,8 @@ export function FileCard({
   onRemove: () => void;
 }) {
   const { t } = useI18n();
+  // "Merge PDFs" needs several files: it lives in the batch bar, not on a single card.
+  const ops = file.operations.filter((o) => !(o.multiInput && o.output === file.format));
   const pick = (op: OperationDescriptor) => (op.options.length ? onSelect(selectedOp?.id === op.id ? null : op) : onRun(op, {}));
 
   return (
@@ -38,10 +40,10 @@ export function FileCard({
         <button onClick={onRemove} className="rounded-md px-2 py-1 text-muted hover:bg-surface-2 hover:text-text" aria-label="remove">✕</button>
       </header>
 
-      {file.operations.length === 0 ? (
+      {ops.length === 0 ? (
         <p className="text-sm text-muted">{t("files.noOperation")}</p>
       ) : (
-        <OpGroups ops={file.operations} selectedId={selectedOp?.id ?? null} onPick={pick} />
+        <OpGroups ops={ops} selectedId={selectedOp?.id ?? null} onPick={pick} />
       )}
 
       {selectedOp && <OptionsPanel op={selectedOp} count={1} onRun={(v) => onRun(selectedOp, v)} onClose={() => onSelect(null)} />}

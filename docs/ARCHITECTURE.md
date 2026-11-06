@@ -19,7 +19,7 @@
 │                     opérations · sortie · jobs           emplacement de ffmpeg…   │
 │                          ▲        ▲        ▲                                     │
 │              convix-image  convix-audio  convix-pdf   (+ futurs crates) │
-│              (Rust pur)       (pilote ffmpeg)   (lopdf + pdfium)                 │
+│              (Rust pur)       (pilote ffmpeg)   (lopdf + Windows)                │
 └────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -79,7 +79,6 @@ Outils lourds non inclus dans l'installeur, téléchargés au premier besoin :
 | Module | Taille | Sert à | Licence |
 |---|---|---|---|
 | `ffmpeg` | 34 Mo à télécharger (archive 7z), 105 Mo installé (`ffmpeg.exe` seul) | audio (puis vidéo) | GPL (build gyan.dev, lien officiel de ffmpeg.org) |
-| `pdfium` | ~5 Mo | rendu PDF → images | BSD/Apache |
 | *(futur)* `realesrgan` | ~50 Mo | upscale d'images IA | BSD |
 
 - Un **manifeste JSON** compilé dans l'app (`crates/convix-modules/manifest.json`) liste, par plateforme : version, URL, SHA-256, taille et fichiers à garder. Pour passer à une nouvelle version de FFmpeg, on modifie ce fichier : elle arrive avec la mise à jour automatique de Convix. *(Plus tard, si besoin : un manifeste distant.)*

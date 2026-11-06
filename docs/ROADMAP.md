@@ -43,10 +43,17 @@ Chaque phase se termine par une version utilisable. ✅ fait · 🔜 en cours ·
 - ⬜ Extraire l'audio sans réencoder (copie directe de la piste)
 - ⬜ Garder la pochette des MP3/M4A
 
-## Phase 3 — PDF ⬜
-- ⬜ Fusion, séparation, compression (lopdf)
-- ⬜ PDF → images (module PDFium), images → PDF
-- ⬜ Interface « multi-fichiers » (ordre des pages/fichiers par glisser)
+## Phase 3 — PDF ✅ (2026-11-06)
+- ✅ Fusionner plusieurs PDF (ordre choisi dans l'interface)
+- ✅ Séparer les pages (toutes ou une liste « 1-3, 5, 8- ») et extraire des pages dans un seul PDF
+- ✅ Compresser : sans perte, équilibrée, forte (photos internes allégées) ; jamais plus gros que l'original
+- ✅ Images → PDF (A4, Letter ou taille de l'image, marges, orientation auto ; JPEG intégrés sans perte, transparence gardée)
+- ✅ PDF → PNG / JPEG (72, 150, 300 DPI) avec le moteur PDF **intégré à Windows** : pas de module PDFium à télécharger
+- ✅ Miniature de la 1re page sur les cartes PDF
+- ✅ Panneau « multi-fichiers » : ordre des fichiers (↑ ↓), résultat unique
+- ✅ Clic droit sur les PDF (compresser, pages en PNG/JPEG, séparer) et « Convertir en PDF » sur les images : 10 images sélectionnées = 1 seul PDF
+- ⬜ Glisser-déposer pour réordonner (aujourd'hui : flèches)
+- ⬜ PDF protégés par mot de passe (aujourd'hui : message clair)
 
 ## Phase 4 — Livraison ⬜
 - ⬜ Clé de signature des mises à jour + `tauri-plugin-updater` + `latest.json`

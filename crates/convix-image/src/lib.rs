@@ -17,10 +17,13 @@ use convix_core::{
     Converter, Error, Format, JobContext, OperationCategory, OperationDescriptor, OptionSpec,
     OptionValues, Result, format, operation::Choice, operation::OptionValuesExt, output,
 };
-use encode::{EncodeSettings, WRITABLE};
+use encode::WRITABLE;
 use std::path::PathBuf;
 
-pub use encode::is_opaque;
+// Reused by the PDF tools (images → PDF, PDF pages → images, image recompression).
+pub use decode::{Decoded, decode};
+pub use encode::{EncodeSettings, encode, is_opaque};
+pub use image;
 
 pub struct ImageConverter;
 

@@ -7,9 +7,9 @@
 - 📄 **PDF** — fusion, séparation, compression, PDF ↔ images
 - 🖱️ **Clic droit** dans l'Explorateur Windows
 - 🔒 **100 % local** : aucun fichier n'est envoyé sur Internet
-- 🧩 **Modules** téléchargés à la demande (FFmpeg, PDFium, plus tard upscale IA)
+- 🧩 **Modules** téléchargés à la demande (FFmpeg, plus tard upscale IA)
 
-**Statut :** images complètes (Phase 1) ; audio via FFmpeg téléchargé au premier besoin (Phase 2) ; PDF ensuite (Phase 3). Voir la [roadmap](docs/ROADMAP.md).
+**Statut :** images complètes (Phase 1) ; audio via FFmpeg téléchargé au premier besoin (Phase 2) ; PDF complet (Phase 3). Voir la [roadmap](docs/ROADMAP.md).
 
 ## Documentation
 

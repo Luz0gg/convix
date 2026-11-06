@@ -1,8 +1,10 @@
 // "For all files": operations shared by several dropped files, applied in one click.
 import { useI18n } from "../../i18n";
 import { sharedOperations } from "../../lib/ops";
-import type { FileInfo, OperationDescriptor, OptionValues } from "../../lib/types";
+import type { FileInfo, JobEvent, OperationDescriptor, OptionValues } from "../../lib/types";
 import { OptionsPanel } from "../options/OptionsPanel";
+import { CombinePanel } from "./CombinePanel";
+import { JobStatusLine } from "./JobStatusLine";
 import { OpGroups } from "./OpGroups";
 
 export function BatchBar({
@@ -10,17 +12,21 @@ export function BatchBar({
   selectedOp,
   onSelect,
   onRun,
+  combineJob,
 }: {
   files: FileInfo[];
   selectedOp: OperationDescriptor | null;
   onSelect: (op: OperationDescriptor | null) => void;
-  onRun: (op: OperationDescriptor, values: OptionValues) => void;
+  /** `ordered` is given for operations that combine files into one result. */
+  onRun: (op: OperationDescriptor, values: OptionValues, ordered?: FileInfo[]) => void;
+  /** Result of the last "combine" action (merged PDF…). */
+  combineJob?: JobEvent;
 }) {
   const { t } = useI18n();
   const shared = sharedOperations(files);
   if (shared.length === 0) return null;
   const counts = new Map(shared.map((s) => [s.op.id, s.count]));
-  const pick = (op: OperationDescriptor) => (op.options.length ? onSelect(selectedOp?.id === op.id ? null : op) : onRun(op, {}));
+  const pick = (op: OperationDescriptor) => (op.options.length || op.multiInput ? onSelect(selectedOp?.id === op.id ? null : op) : onRun(op, {}));
 
   return (
     <section className="rounded-xl border border-accent/30 bg-surface p-4">
@@ -28,9 +34,13 @@ export function BatchBar({
         {t("batch.title")} <span className="font-normal text-muted">· {t("files.count", { count: files.length })}</span>
       </h2>
       <OpGroups ops={shared.map((s) => s.op)} counts={counts} selectedId={selectedOp?.id ?? null} onPick={pick} />
-      {selectedOp && (
+      {selectedOp && selectedOp.multiInput && (
+        <CombinePanel op={selectedOp} files={files} onRun={(v, ordered) => onRun(selectedOp, v, ordered)} onClose={() => onSelect(null)} />
+      )}
+      {selectedOp && !selectedOp.multiInput && (
         <OptionsPanel op={selectedOp} count={counts.get(selectedOp.id) ?? 0} onRun={(v) => onRun(selectedOp, v)} onClose={() => onSelect(null)} />
       )}
+      {combineJob && <JobStatusLine job={combineJob} />}
     </section>
   );
 }

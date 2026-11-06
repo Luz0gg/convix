@@ -23,6 +23,7 @@ function opsFor(format: string): OperationDescriptor[] {
     convert(f, f === "jpeg" ? [quality(90)] : f === "webp" ? [{ type: "toggle", id: "lossless", labelKey: "opt.lossless", default: false }, quality(90)] : f === "avif" ? [quality(75)] : []),
   );
   ops.push({ id: "image.compress.smaller", converter: "image", category: "compress", output: format as never, outputSuffix: "-min", labelKey: "op.compressSmaller", multiInput: false, requires: [], options: [quality(75)] });
+  ops.push({ id: "pdf.fromImages", converter: "pdf", category: "combine", output: "pdf", outputSuffix: null, labelKey: "op.imagesToPdf", multiInput: true, requires: [], options: [{ type: "select", id: "pageSize", labelKey: "opt.pageSize", choices: [{ value: "a4", label: "A4", literal: true }, { value: "image", label: "opt.pageSize.image", literal: false }], default: "a4" }, { type: "toggle", id: "margin", labelKey: "opt.margin", default: true }] });
   ops.push({
     id: "image.resize", converter: "image", category: "transform", output: format as never, outputSuffix: "-resized", labelKey: "op.resize", multiInput: false, requires: [],
     options: [
@@ -51,6 +52,18 @@ function audioOpsFor(format: string): OperationDescriptor[] {
     multiInput: false, requires: ["ffmpeg"], options: audioOptions(to),
   }));
 }
+const pdfOp = (id: string, category: string, output: string, labelKey: string, extra: Partial<OperationDescriptor> = {}): OperationDescriptor =>
+  ({ id, converter: "pdf", category, output, outputSuffix: null, labelKey, multiInput: false, requires: [], options: [], ...extra }) as OperationDescriptor;
+const pages = { type: "text" as const, id: "pages", labelKey: "opt.pages", placeholderKey: "opt.pages.all" };
+const dpi = { type: "select" as const, id: "dpi", labelKey: "opt.resolution", choices: [["72", "opt.dpi.screen"], ["150", "opt.dpi.normal"], ["300", "opt.dpi.print"]].map(([value, label]) => ({ value, label, literal: false })), default: "150" };
+const PDF_OPS = [
+  pdfOp("pdf.toImages.png", "convert", "png", "op.pdfToImages", { options: [dpi, pages] }),
+  pdfOp("pdf.toImages.jpg", "convert", "jpeg", "op.pdfToImages", { options: [dpi, pages] }),
+  pdfOp("pdf.compress", "compress", "pdf", "op.compressPdf", { options: [{ type: "select", id: "level", labelKey: "opt.compression", choices: [["lossless", "opt.pdf.lossless"], ["balanced", "opt.pdf.balanced"], ["strong", "opt.pdf.strong"]].map(([value, label]) => ({ value, label, literal: false })), default: "balanced" }] }),
+  pdfOp("pdf.split", "extract", "pdf", "op.splitPdf", { options: [pages] }),
+  pdfOp("pdf.extract", "extract", "pdf", "op.extractPages", { options: [{ ...pages, placeholderKey: "opt.pages.example" }] }),
+  pdfOp("pdf.merge", "combine", "pdf", "op.mergePdf", { multiInput: true }),
+];
 let ffmpegInstalled = false;
 const moduleList = () => [{
   id: "ffmpeg", name: "FFmpeg", version: "9.0.2", license: "GPL-3.0 (build gyan.dev)", homepage: "https://www.gyan.dev/ffmpeg/builds/", downloadSize: 35_430_500,
@@ -98,8 +111,8 @@ async function invoke(cmd: string, args: Record<string, any> = {}): Promise<unkn
         const name = path.split(/[\\/]/).pop()!;
         const e = name.split(".").pop()!.toLowerCase();
         const format = (e === "jpg" ? "jpeg" : e) as FileInfo["format"];
-        const kind = AUDIO.includes(e) ? "audio" : VIDEO.includes(e) ? "video" : "image";
-        const operations = kind === "image" ? opsFor(format!) : audioOpsFor(e);
+        const kind = AUDIO.includes(e) ? "audio" : VIDEO.includes(e) ? "video" : e === "pdf" ? "document" : "image";
+        const operations = kind === "image" ? opsFor(format!) : kind === "document" ? PDF_OPS : audioOpsFor(e);
         return { path, name, size: 200_000 + name.length * 91_000, format, formatLabel: format!.toUpperCase(), kind, operations, error: null };
       });
     case "module_list":
@@ -155,5 +168,5 @@ async function invoke(cmd: string, args: Record<string, any> = {}): Promise<unkn
 
 (window as any).__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} };
 
-(window as any).__mockDrop = (paths = ["C:\\Montage\\vignette.webp", "C:\\Montage\\interview.wav", "C:\\Montage\\rush_A001.mov"]) =>
+(window as any).__mockDrop = (paths = ["C:\\Montage\\vignette.webp", "C:\\Montage\\affiche.png", "C:\\Docs\\devis.pdf", "C:\\Docs\\contrat.pdf", "C:\\Montage\\interview.wav"]) =>
   emit("tauri://drag-drop", { paths, position: { x: 0, y: 0 } });

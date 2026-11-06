@@ -22,7 +22,9 @@ export function OptionsPanel({
 
   const set = (id: string, v: OptionValues[string]) => setValues((prev) => ({ ...prev, [id]: v }));
   const run = () => {
-    rememberOptions(op.id, values);
+    // Page lists belong to one document: never carried over to the next one.
+    const textIds = new Set(op.options.filter((s) => s.type === "text").map((s) => s.id));
+    rememberOptions(op.id, Object.fromEntries(Object.entries(values).filter(([k]) => !textIds.has(k))));
     onRun(values);
   };
 
@@ -92,6 +94,19 @@ function Field({ spec, value, onChange }: { spec: OptionSpec; value: OptionValue
             ))}
           </div>
         </div>
+      );
+    case "text":
+      return (
+        <label className="block">
+          {label}
+          <input
+            type="text"
+            placeholder={t(spec.placeholderKey)}
+            value={value == null ? "" : String(value)}
+            onChange={(e) => onChange(e.target.value)}
+            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1 text-sm outline-none focus:border-accent"
+          />
+        </label>
       );
     case "number":
       return (

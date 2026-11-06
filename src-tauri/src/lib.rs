@@ -39,8 +39,8 @@ fn build_registry() -> Registry {
     let mut r = Registry::new();
     r.register(convix_image::ImageConverter);
     r.register(convix_audio::AudioConverter);
-    // Registered once implemented, so the UI never offers actions that can't run yet:
-    // Phase 3: r.register(convix_pdf::PdfConverter);
+    r.register(convix_pdf::PdfConverter);
+    // Only converters that fully work are registered: the UI never offers an action that can't run.
     r
 }
 
@@ -50,7 +50,11 @@ pub(crate) fn refresh_shell_menu(state: &AppState) {
     let settings = state.settings.read().unwrap().clone();
     if settings.shell_integration && !cfg!(debug_assertions) {
         let (registry, modules) = (state.registry.clone(), state.modules.clone());
-        std::thread::spawn(move || shell_integration::install(&registry, &settings.language, &|id| modules.locate(id).is_some()));
+        std::thread::spawn(move || {
+            shell_integration::install(&registry, &settings.language, &|id| {
+                modules.locate(id).is_some()
+            })
+        });
     }
 }
 
@@ -85,7 +89,9 @@ fn on_second_instance(app: &AppHandle, argv: Vec<String>, cwd: String) {
 pub fn run() {
     tauri::Builder::default()
         // Must be first.
-        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| on_second_instance(app, argv, cwd)))
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            on_second_instance(app, argv, cwd)
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -97,8 +103,12 @@ pub fn run() {
 
             // Right-click › "Convertir en PNG": convert in the background, no window.
             let launch = cli::parse(std::env::args().skip(1), None);
-            let is_quiet = settings.quiet_context_menu && launch.as_ref().is_some_and(|r| r.operation.is_some());
-            let mut quiet_state = quiet::QuietState { active: is_quiet, ..Default::default() };
+            let is_quiet = settings.quiet_context_menu
+                && launch.as_ref().is_some_and(|r| r.operation.is_some());
+            let mut quiet_state = quiet::QuietState {
+                active: is_quiet,
+                ..Default::default()
+            };
             let pending_launch = if is_quiet {
                 quiet_state.pending.extend(launch);
                 None

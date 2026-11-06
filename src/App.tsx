@@ -15,7 +15,8 @@ import { useModules } from "./features/modules/modules";
 
 type Toast = { kind: "ok" | "error"; text: string };
 /** An action waiting for a module download (FFmpeg…). */
-type PendingRun = { moduleId: string; op: OperationDescriptor; targets: FileInfo[]; options: OptionValues };
+type PendingRun = { moduleId: string; op: OperationDescriptor; targets: FileInfo[]; options: OptionValues; combine: boolean };
+type RunFlags = { moduleJustInstalled?: boolean; /** Several files → one result, shown in the batch bar. */ combine?: boolean };
 /** Which options panel is open: on one file (its path) or on the batch bar. */
 type Selection = { scope: string; op: OperationDescriptor } | null;
 const BATCH = "__batch__";
@@ -30,6 +31,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [pendingRun, setPendingRun] = useState<PendingRun | null>(null);
+  const [combineJob, setCombineJob] = useState<JobEvent | undefined>();
+  const combineBatches = useRef(new Set<string>());
   const { modules, missingFor } = useModules();
   const settingsRef = useRef<Settings | null>(null);
   settingsRef.current = settings;
@@ -67,7 +70,10 @@ export default function App() {
 
   // ---- per-file progress ----
   useEffect(() => {
-    const off = listen<JobEvent>("job-event", (e) => setJobs((prev) => ({ ...prev, [e.payload.input]: e.payload })));
+    const off = listen<JobEvent>("job-event", (e) => {
+      if (combineBatches.current.has(e.payload.batchId)) setCombineJob(e.payload);
+      else setJobs((prev) => ({ ...prev, [e.payload.input]: e.payload }));
+    });
     return () => {
       off.then((fn) => fn());
     };
@@ -86,7 +92,7 @@ export default function App() {
 
   // ---- run an operation on one or many files ----
   const runOp = useCallback(
-    async (op: OperationDescriptor, targets: FileInfo[], options: OptionValues, moduleJustInstalled = false) => {
+    async (op: OperationDescriptor, targets: FileInfo[], options: OptionValues, { moduleJustInstalled = false, combine = false }: RunFlags = {}) => {
       const compatible = targets.filter((f) => supports(f, op.id));
       if (compatible.length === 0) return;
 
@@ -94,15 +100,15 @@ export default function App() {
       const missing = missingFor(op)[0];
       if (missing && !moduleJustInstalled) {
         setSelection(null);
-        setPendingRun({ moduleId: missing.id, op, targets: compatible, options });
+        setPendingRun({ moduleId: missing.id, op, targets: compatible, options, combine });
         return;
       }
 
       let outputDir: string | null = null;
       let outputPath: string | null = null;
       if (settingsRef.current?.output.mode === "askEachTime") {
-        if (compatible.length === 1) {
-          const f = compatible[0];
+        if (compatible.length === 1 || combine) {
+          const f = compatible[0]; // a combined result is named after the first file
           const sameFormat = op.output === f.format;
           const outExt = sameFormat ? (f.name.split(".").pop() ?? "") : ext(op.output ?? "");
           const stem = f.name.replace(/\.[^.]+$/, "");
@@ -119,6 +125,10 @@ export default function App() {
       }
 
       const batchId = crypto.randomUUID();
+      if (combine) {
+        combineBatches.current.add(batchId);
+        setCombineJob(undefined);
+      }
       setSelection(null);
       setRunning((r) => [...r, batchId]);
       try {
@@ -130,9 +140,10 @@ export default function App() {
           outputDir,
           outputPath,
         });
+        if (combine && results[0]) setCombineJob(results[0]);
         const done = results.filter((r) => r.status === "done").length;
         const failed = results.filter((r) => r.status === "failed").length;
-        if (results.length > 1) setToast({ kind: failed ? "error" : "ok", text: t("batch.summary", { done, failed }) });
+        if (results.length > 1 && !combine) setToast({ kind: failed ? "error" : "ok", text: t("batch.summary", { done, failed }) });
       } catch (e) {
         setToast({ kind: "error", text: String(e) });
       } finally {
@@ -192,7 +203,7 @@ export default function App() {
             </button>
           )}
           {files.length > 0 && (
-            <button onClick={() => (setFiles([]), setJobs({}))} className="rounded-lg px-3 py-1.5 text-sm text-muted hover:bg-surface-2">
+            <button onClick={() => (setFiles([]), setJobs({}), setCombineJob(undefined))} className="rounded-lg px-3 py-1.5 text-sm text-muted hover:bg-surface-2">
               {t("files.clear")}
             </button>
           )}
@@ -215,7 +226,8 @@ export default function App() {
               files={files}
               selectedOp={selection?.scope === BATCH ? selection.op : null}
               onSelect={(op) => setSelection(op ? { scope: BATCH, op } : null)}
-              onRun={(op, values) => runOp(op, files, values)}
+              onRun={(op, values, ordered) => runOp(op, ordered ?? files, values, { combine: Boolean(ordered) })}
+              combineJob={combineJob}
             />
           )}
           {files.map((f) => (
@@ -239,9 +251,9 @@ export default function App() {
           module={modules.find((m) => m.id === pendingRun.moduleId)!}
           onClose={() => setPendingRun(null)}
           onInstalled={() => {
-            const { op, targets, options } = pendingRun;
+            const { op, targets, options, combine } = pendingRun;
             setPendingRun(null);
-            runOp(op, targets, options, true);
+            runOp(op, targets, options, { moduleJustInstalled: true, combine });
           }}
         />
       )}

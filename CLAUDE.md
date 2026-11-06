@@ -15,8 +15,8 @@
 
 ## Carte du code
 - `crates/convix-core` : formats, détection, `OperationDescriptor`/`OptionSpec`, trait `Converter`, `Registry`, sortie, annulation. **Toute la logique va dans les crates**, pas dans `src-tauri`.
-- `crates/convix-{image,audio,pdf}` : un convertisseur chacun. Ajouter une conversion = ajouter un descripteur dans `operations_for` + le cas dans `run`. L'interface s'adapte seule.
-- `crates/convix-modules` : modules externes (ffmpeg, pdfium) téléchargés à la demande. Liste + URL + SHA-256 dans `crates/convix-modules/manifest.json` (nouvelle version = recalculer l'empreinte). Une opération qui en dépend déclare `requires: ["ffmpeg"]` : l'UI propose le téléchargement toute seule.
+- `crates/convix-{image,audio,pdf}` : un convertisseur chacun (PDF : lopdf + moteur PDF de Windows pour le rendu). Opération `multi_input` = un seul job avec tous les fichiers (fusion, images → PDF). Ajouter une conversion = ajouter un descripteur dans `operations_for` + le cas dans `run`. L'interface s'adapte seule.
+- `crates/convix-modules` : modules externes (ffmpeg) téléchargés à la demande. Liste + URL + SHA-256 dans `crates/convix-modules/manifest.json` (nouvelle version = recalculer l'empreinte). Une opération qui en dépend déclare `requires: ["ffmpeg"]` : l'UI propose le téléchargement toute seule.
 - `src-tauri/src` : `lib.rs` (démarrage, état), `commands.rs` (API pour l'UI), `cli.rs` (`--op <id> fichiers…`), `shell_integration.rs` (clic droit).
 - `src/` : React. Appels Rust **uniquement** via `src/lib/api.ts`. Types miroirs dans `src/lib/types.ts` (à garder synchronisés avec Rust). Textes **uniquement** via `t("clé")` avec la clé dans `src/i18n/fr.json` **et** `en.json`.
 - Les ids d'opération (`image.convert.png`) sont **stables** : presets et clic droit en dépendent. Ne pas les renommer.
