@@ -1,0 +1,26 @@
+# Rust
+/target/
+
+# Tauri generated
+/src-tauri/gen/schemas
+
+# Node / Vite
+node_modules
+dist
+dist-ssr
+*.local
+
+# Logs
+*.log
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+Thumbs.db
+
+# Secrets — the updater signing key must NEVER be committed
+*.key
+.env
+.env.*

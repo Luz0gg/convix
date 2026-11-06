@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+/* Design tokens. Dark by default (like editing software), light follows the system. */
+@theme {
+  --color-bg: #0f1115;
+  --color-surface: #171a21;
+  --color-surface-2: #1f232c;
+  --color-border: #2a2f3a;
+  --color-text: #e8eaef;
+  --color-muted: #8b93a3;
+  --color-accent: #6d8bff;
+  --color-accent-soft: #6d8bff22;
+  --color-success: #3fbf7f;
+  --color-danger: #ef5d5d;
+  --font-sans: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --color-bg: #f5f6f8;
+    --color-surface: #ffffff;
+    --color-surface-2: #eef0f4;
+    --color-border: #dde1e8;
+    --color-text: #161a22;
+    --color-muted: #5f6878;
+    --color-accent: #3d5eea;
+    --color-accent-soft: #3d5eea18;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}

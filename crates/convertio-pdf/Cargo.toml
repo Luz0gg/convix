@@ -1,0 +1,14 @@
+[package]
+name = "convertio-pdf"
+description = "ConvertIO PDF tools (merge, split, compress, PDF <-> images)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+convertio-core.workspace = true
+
+# Planned (Phase 3):
+# lopdf        — merge / split / structure-level compression (pure Rust)
+# pdfium-render — render pages to images (needs the `pdfium` module, ~5 MB)
