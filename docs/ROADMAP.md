@@ -65,6 +65,23 @@ Chaque phase se termine par une version utilisable. ✅ fait · 🔜 en cours ·
 - ✅ Section « À propos » : version, GitHub, signaler un problème, afficher le journal, crédits
 - ✅ **v1.0.0 publiée** le 2026-11-06 : https://github.com/Luz0gg/convix/releases/tag/v1.0.0
 - 🔜 Tester une vraie mise à jour automatique (publier une v1.0.1 sur un PC où la v1.0.0 est installée)
+
+## v1.0.1 — Audit et fiabilité (2026-11-06, nuit)
+Rapport complet : [`docs/AUDIT-2026-11.md`](AUDIT-2026-11.md).
+- ✅ Journal démarré avant tout le reste, ligne « exit » à chaque fermeture normale, recherches de mise à jour journalisées
+- ✅ Téléchargement de FFmpeg fiable sur connexion lente (il échouait sous ~5 Mbit/s), annulable même bloqué
+- ✅ Fichiers piégés (« bombes ») refusés proprement au lieu de faire planter l'app : SVG géants, GIF/WebP animés, HEIC, PDF, redimensionnement absurde
+- ✅ SVG : plus aucun accès réseau ou disque hors du dossier (images liées)
+- ✅ Jamais d'écrasement d'un fichier existant, même temporaire ; renommage final réessayé si l'antivirus bloque un instant
+- ✅ Options vérifiées avant chaque conversion (préréglages modifiés à la main, versions précédentes)
+- ✅ Audio : annulation immédiate, FFmpeg arrêté si Convix se ferme, normalisation vers Opus/MP3 depuis du 96 kHz
+- ✅ PDF : ordre des pages extraites respecté, séparation rapide sur les gros fichiers, pages géantes non déformées, noms corrects
+- ✅ Clic droit en arrière-plan : ne peut plus rester bloqué, plus de demande perdue
+- ✅ Menu clic droit réécrit par un seul fil à la fois, hors du fil de la fenêtre
+- ✅ Interface : écran de secours au lieu d'une fenêtre blanche, erreurs traduites (fichier ouvert ailleurs, accès refusé, disque plein…), bouton « Choisir des fichiers » + Ctrl+O, boîtes de dialogue au clavier (Échap), contrastes, animations réduites, plus fluide avec des centaines de fichiers, confirmation avant de fermer pendant une conversion
+- ✅ Permissions de l'interface réduites au strict nécessaire
+- ✅ Script de release : essai à blanc sans effet sur le dépôt, erreurs git vérifiées, pré-versions
+- ✅ 58 tests (contre ~40), dont FFmpeg réel (annulation, 96 kHz)
 - 🎯 **V1.0** ✅
 
 ## Après la V1 (idées validées, ordre à décider)

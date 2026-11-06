@@ -20,7 +20,7 @@ Tout se fait **depuis ton PC** : il n'y a pas de CI GitHub (voir [ADR 0004](adr/
 
 Prérequis : `gh` connecté (`gh auth status`), branche `main` à jour, tout commité.
 
-1. Essai à blanc (construit et signe, ne publie rien) :
+1. Essai à blanc (construit et signe, ne publie rien ; les fichiers du dépôt sont remis comme avant à la fin) :
    ```
    pnpm release -Version 1.0.0
    ```
@@ -35,7 +35,9 @@ Le script fait, dans l'ordre :
 2. Il lance les tests (`cargo test --workspace`).
 3. Il construit l'installeur signé (`pnpm tauri build`, qui exécute aussi `pnpm build`).
 4. Il écrit `latest.json`.
-5. Avec `-Publish` seulement : il fait un commit « Release vX.Y.Z », pose le tag, pousse le tout, puis crée la Release GitHub avec les 3 fichiers.
+5. Avec `-Publish` seulement : il fait un commit « Release vX.Y.Z », le pousse, puis crée la Release GitHub avec les 3 fichiers (c'est elle qui crée le tag : si elle échoue, rien n'est tagué et on relance simplement la même commande).
+
+Une version avec un suffixe (`1.1.0-beta.1`) est publiée en **pré-version** : elle n'est jamais proposée en mise à jour automatique.
 
 ## Numéros de version
 
