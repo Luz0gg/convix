@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { ModulesProvider } from "./features/modules/modules";
 import { I18nProvider } from "./i18n";
 import "./styles.css";
@@ -18,11 +19,13 @@ window.addEventListener("securitypolicyviolation", (e) => report(`CSP blocked ${
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <I18nProvider>
-      <ModulesProvider>
-        <App />
-      </ModulesProvider>
-    </I18nProvider>
+    <ErrorBoundary>
+      <I18nProvider>
+        <ModulesProvider>
+          <App />
+        </ModulesProvider>
+      </I18nProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );
 

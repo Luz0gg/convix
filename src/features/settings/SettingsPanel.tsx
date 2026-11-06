@@ -6,6 +6,7 @@ import { api, errorText, formatSize, isCancelled } from "../../lib/api";
 import type { Settings } from "../../lib/types";
 import { ModuleProgressBar } from "../modules/ModuleProgressBar";
 import { useModules } from "../modules/modules";
+import { Dialog } from "../ui/Dialog";
 
 function Segmented<V extends string>({ value, options, onChange }: { value: V; options: [V, string][]; onChange: (v: V) => void }) {
   return (
@@ -14,7 +15,8 @@ function Segmented<V extends string>({ value, options, onChange }: { value: V; o
         <button
           key={v}
           onClick={() => onChange(v)}
-          className={`rounded-md px-3 py-1 text-sm ${value === v ? "bg-accent text-white" : "text-muted hover:text-text"}`}
+          aria-pressed={value === v}
+          className={`rounded-md px-3 py-1 text-sm ${value === v ? "bg-accent text-on-accent" : "text-muted hover:text-text"}`}
         >
           {label}
         </button>
@@ -64,7 +66,7 @@ function ModulesList() {
                   {t("run.cancel")}
                 </button>
               ) : m.status.state === "updateAvailable" ? (
-                <button onClick={() => run(() => install(m.id))} className="shrink-0 rounded-md bg-accent px-2 py-1 text-xs text-white">
+                <button onClick={() => run(() => install(m.id))} className="shrink-0 rounded-md bg-accent px-2 py-1 text-xs text-on-accent">
                   {t("module.update", { version: m.version })}
                 </button>
               ) : installed ? (
@@ -72,7 +74,7 @@ function ModulesList() {
                   {t("module.remove")}
                 </button>
               ) : (
-                <button onClick={() => run(() => install(m.id))} className="shrink-0 rounded-md bg-accent px-2 py-1 text-xs text-white">
+                <button onClick={() => run(() => install(m.id))} className="shrink-0 rounded-md bg-accent px-2 py-1 text-xs text-on-accent">
                   {t("module.prompt.download", { size: formatSize(m.downloadSize) })}
                 </button>
               )}
@@ -82,7 +84,11 @@ function ModulesList() {
           </div>
         );
       })}
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {error && (
+        <p role="alert" className="selectable text-xs text-danger">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -105,10 +111,13 @@ export function SettingsPanel({
   const [logPath, setLogPath] = useState<string | null>(null);
   const [checking, setChecking] = useState<CheckResult | "checking" | null>(null);
   useEffect(() => {
-    api.appInfo().then((i) => {
-      setVersion(i.version);
-      setLogPath(i.logPath);
-    });
+    api
+      .appInfo()
+      .then((i) => {
+        setVersion(i.version);
+        setLogPath(i.logPath);
+      })
+      .catch(() => {});
   }, []);
 
   const lastFolder = settings.output.mode === "fixedFolder" ? settings.output.path : "";
@@ -118,11 +127,12 @@ export function SettingsPanel({
   };
 
   return (
-    <div className="fixed inset-0 z-20 flex justify-end bg-black/40" onClick={onClose}>
-      <aside className="h-full w-full max-w-md space-y-6 overflow-y-auto border-l border-border bg-surface p-6" onClick={(e) => e.stopPropagation()}>
+    <Dialog title={t("settings.title")} onClose={onClose} variant="drawer">
         <header className="flex items-center justify-between">
           <h2 className="text-lg font-bold">{t("settings.title")}</h2>
-          <button onClick={onClose} className="rounded-md px-2 py-1 text-muted hover:bg-surface-2">✕</button>
+          <button onClick={onClose} className="rounded-md px-2 py-1 text-muted hover:bg-surface-2" aria-label={t("settings.close")} title={t("settings.close")}>
+            ✕
+          </button>
         </header>
 
         <Section title={t("settings.output")}>
@@ -162,7 +172,7 @@ export function SettingsPanel({
           />
         </Section>
 
-        <Section title="Windows">
+        <Section title={t("settings.windows")}>
           <label className="flex cursor-pointer items-center justify-between gap-4 text-sm">
             {t("settings.shell")}
             <input
@@ -221,21 +231,20 @@ export function SettingsPanel({
           </p>
           <p className="text-xs text-muted">{t("settings.about.text")}</p>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => openUrl("https://github.com/Luz0gg/convix")} className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent">
+            <button onClick={() => openUrl("https://github.com/Luz0gg/convix").catch(() => {})} className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent">
               GitHub
             </button>
-            <button onClick={() => openUrl("https://github.com/Luz0gg/convix/issues/new")} className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent">
+            <button onClick={() => openUrl("https://github.com/Luz0gg/convix/issues/new").catch(() => {})} className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent">
               {t("settings.about.bug")}
             </button>
             {logPath && (
-              <button onClick={() => revealItemInDir(logPath)} className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent">
+              <button onClick={() => revealItemInDir(logPath).catch(() => {})} className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent">
                 {t("settings.about.log")}
               </button>
             )}
           </div>
           <p className="text-[11px] text-muted">{t("settings.about.credits")}</p>
         </Section>
-      </aside>
-    </div>
+    </Dialog>
   );
 }

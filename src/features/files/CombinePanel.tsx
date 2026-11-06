@@ -19,7 +19,18 @@ export function CombinePanel({
 }) {
   const { t } = useI18n();
   const [order, setOrder] = useState(() => files.filter((f) => supports(f, op.id)));
-  useEffect(() => setOrder(files.filter((f) => supports(f, op.id))), [files, op.id]);
+  // Files added or removed meanwhile: keep the order already chosen, new files go last.
+  useEffect(
+    () =>
+      setOrder((current) => {
+        const eligible = files.filter((f) => supports(f, op.id));
+        const present = new Set(eligible.map((f) => f.path));
+        const kept = current.filter((f) => present.has(f.path));
+        const known = new Set(kept.map((f) => f.path));
+        return [...kept, ...eligible.filter((f) => !known.has(f.path))];
+      }),
+    [files, op.id],
+  );
 
   const move = (i: number, delta: number) =>
     setOrder((list) => {
@@ -41,13 +52,19 @@ export function CombinePanel({
               <Thumbnail file={f} />
             </div>
             <span className="min-w-0 flex-1 truncate" title={f.path}>{f.name}</span>
-            <button onClick={() => move(i, -1)} disabled={i === 0} className="rounded px-1.5 text-muted hover:text-accent disabled:opacity-30" aria-label="up">↑</button>
-            <button onClick={() => move(i, 1)} disabled={i === order.length - 1} className="rounded px-1.5 text-muted hover:text-accent disabled:opacity-30" aria-label="down">↓</button>
-            <button onClick={() => setOrder((l) => l.filter((x) => x.path !== f.path))} className="rounded px-1.5 text-muted hover:text-danger" aria-label="remove">✕</button>
+            <button onClick={() => move(i, -1)} disabled={i === 0} className="rounded px-1.5 text-muted hover:text-accent disabled:opacity-30" aria-label={t("combine.up", { name: f.name })} title={t("combine.up", { name: f.name })}>↑</button>
+            <button onClick={() => move(i, 1)} disabled={i === order.length - 1} className="rounded px-1.5 text-muted hover:text-accent disabled:opacity-30" aria-label={t("combine.down", { name: f.name })} title={t("combine.down", { name: f.name })}>↓</button>
+            <button onClick={() => setOrder((l) => l.filter((x) => x.path !== f.path))} className="rounded px-1.5 text-muted hover:text-danger" aria-label={t("combine.leaveOut", { name: f.name })} title={t("combine.leaveOut", { name: f.name })}>✕</button>
           </li>
         ))}
       </ol>
-      <OptionsPanel op={op} count={order.length} onRun={(values) => onRun(values, order)} onClose={onClose} />
+      <OptionsPanel
+        op={op}
+        count={order.length}
+        onRun={(values) => onRun(values, order)}
+        onClose={onClose}
+        disabledReason={order.length < 2 ? t("combine.empty") : undefined}
+      />
     </div>
   );
 }

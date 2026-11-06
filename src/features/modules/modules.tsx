@@ -1,5 +1,5 @@
 // Installed external modules (FFmpeg…) and their downloads, shared by the whole UI.
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api } from "../../lib/api";
 import type { ModuleInfo, ModuleProgress, OperationDescriptor } from "../../lib/types";
@@ -8,7 +8,8 @@ interface ModulesValue {
   modules: ModuleInfo[];
   /** Download in progress, by module id. */
   progress: Record<string, ModuleProgress>;
-  isInstalled: (id: string) => boolean;
+  /** The module list has been loaded (until then, `missingFor` can't know). */
+  ready: boolean;
   /** Modules this operation needs that are not installed yet. */
   missingFor: (op: OperationDescriptor) => ModuleInfo[];
   install: (id: string) => Promise<void>;
@@ -21,16 +22,19 @@ const ModulesContext = createContext<ModulesValue | null>(null);
 export function ModulesProvider({ children }: { children: ReactNode }) {
   const [modules, setModules] = useState<ModuleInfo[]>([]);
   const [progress, setProgress] = useState<Record<string, ModuleProgress>>({});
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    api.moduleList().then(setModules).catch(() => {});
+    api
+      .moduleList()
+      .then(setModules)
+      .catch(() => {})
+      .finally(() => setReady(true));
     const off = listen<ModuleProgress>("module-progress", (e) => setProgress((p) => ({ ...p, [e.payload.id]: e.payload })));
     return () => {
       off.then((fn) => fn());
     };
   }, []);
-
-  const isInstalled = useCallback((id: string) => modules.some((m) => m.id === id && m.status.state !== "notInstalled"), [modules]);
 
   const missingFor = useCallback(
     (op: OperationDescriptor) => modules.filter((m) => op.requires.includes(m.id) && m.status.state === "notInstalled"),
@@ -54,9 +58,12 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
     setModules(await api.removeModule(id));
   }, []);
 
-  return (
-    <ModulesContext.Provider value={{ modules, progress, isInstalled, missingFor, install, cancel, remove }}>{children}</ModulesContext.Provider>
+  // Memoized: every download progress event would otherwise re-render every action button.
+  const value = useMemo(
+    () => ({ modules, progress, ready, missingFor, install, cancel, remove }),
+    [modules, progress, ready, missingFor, install, cancel, remove],
   );
+  return <ModulesContext.Provider value={value}>{children}</ModulesContext.Provider>;
 }
 
 export function useModules(): ModulesValue {

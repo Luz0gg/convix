@@ -134,5 +134,21 @@
   "error.io.denied": "Access denied (protected folder or read-only file)",
   "error.io.locked": "File in use by another program: close it and try again",
   "error.io.diskFull": "Disk full",
-  "error.internal": "Internal error during the conversion"
+  "error.internal": "Internal error during the conversion",
+  "files.remove": "Remove {name} from the list",
+  "combine.up": "Move {name} up",
+  "combine.down": "Move {name} down",
+  "combine.leaveOut": "Leave {name} out",
+  "combine.empty": "Add at least 2 compatible files.",
+  "settings.windows": "Windows",
+  "settings.close": "Close settings",
+  "drop.pick": "Choose files…",
+  "drop.pickFolder": "Choose a folder…",
+  "drop.hint": "or Ctrl+O",
+  "update.closing": "Convix will close to install the update, then restart.",
+  "update.busy": "Wait for the conversions to finish before installing the update.",
+  "confirm.closeRunning": "Conversions are running. Closing Convix stops them. Close anyway?",
+  "batch.summaryCancelled": "{done} succeeded, {failed} failed, {cancelled} cancelled",
+  "toast.close": "Dismiss message",
+  "files.limit": "Only the first {count} files of the folder were added."
 }

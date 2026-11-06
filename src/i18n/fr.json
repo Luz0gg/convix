@@ -134,5 +134,21 @@
   "error.io.denied": "Accès refusé (dossier protégé ou fichier en lecture seule)",
   "error.io.locked": "Fichier utilisé par un autre programme : ferme-le puis réessaie",
   "error.io.diskFull": "Disque plein",
-  "error.internal": "Erreur interne pendant la conversion"
+  "error.internal": "Erreur interne pendant la conversion",
+  "files.remove": "Retirer {name} de la liste",
+  "combine.up": "Monter {name}",
+  "combine.down": "Descendre {name}",
+  "combine.leaveOut": "Ne pas inclure {name}",
+  "combine.empty": "Ajoute au moins 2 fichiers compatibles.",
+  "settings.windows": "Windows",
+  "settings.close": "Fermer les réglages",
+  "drop.pick": "Choisir des fichiers…",
+  "drop.pickFolder": "Choisir un dossier…",
+  "drop.hint": "ou Ctrl+O",
+  "update.closing": "Convix va se fermer pour installer la mise à jour, puis se relancer.",
+  "update.busy": "Attends la fin des conversions pour installer la mise à jour.",
+  "confirm.closeRunning": "Des conversions sont en cours. Fermer Convix les arrête. Fermer quand même ?",
+  "batch.summaryCancelled": "{done} réussi(s), {failed} échec(s), {cancelled} annulé(s)",
+  "toast.close": "Fermer le message",
+  "files.limit": "Seuls les {count} premiers fichiers du dossier ont été ajoutés."
 }

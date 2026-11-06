@@ -9,6 +9,7 @@ export function OpButton({ op, active, count, onClick }: { op: OperationDescript
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       title={missing.length ? t("module.required", { module: missing.map((m) => m.name).join(", ") }) : undefined}
       className={`rounded-lg border px-2.5 py-1 text-sm transition-colors ${
         active ? "border-accent bg-accent-soft text-accent" : "border-border bg-surface-2 hover:border-accent hover:text-accent"

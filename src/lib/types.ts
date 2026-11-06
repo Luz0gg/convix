@@ -107,3 +107,9 @@ export interface ModuleProgress {
   done: number;
   total: number;
 }
+
+export interface AppInfo {
+  version: string;
+  /** Local error log, for bug reports. */
+  logPath: string | null;
+}

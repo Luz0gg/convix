@@ -1,10 +1,10 @@
 // Single entry point to the Rust side. Components never call `invoke` directly.
 import { invoke } from "@tauri-apps/api/core";
 import { check, type Update } from "@tauri-apps/plugin-updater";
-import type { FileInfo, JobEvent, LaunchRequest, ModuleInfo, OptionValues, Settings } from "./types";
+import type { AppInfo, FileInfo, JobEvent, LaunchRequest, ModuleInfo, OptionValues, Settings } from "./types";
 
 export const api = {
-  appInfo: () => invoke<{ version: string; logPath: string | null }>("app_info"),
+  appInfo: () => invoke<AppInfo>("app_info"),
   logUi: (level: "error" | "info", message: string) => invoke<void>("log_ui", { level, message }),
   /** Signed update from GitHub Releases, or null when up to date. */
   checkUpdate: (): Promise<Update | null> => check(),
@@ -40,9 +40,11 @@ export const FORMAT_LABELS: Record<string, string> = {
   mp4: "MP4", mov: "MOV", mkv: "MKV", webm: "WebM", avi: "AVI", pdf: "PDF",
 };
 
+/** "1.2 Mo" in French, "1.2 MB" in English (follows the interface language). */
 export function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} o`;
-  const units = ["Ko", "Mo", "Go"];
+  const en = document.documentElement.lang === "en";
+  if (bytes < 1024) return `${bytes} ${en ? "B" : "o"}`;
+  const units = en ? ["KB", "MB", "GB"] : ["Ko", "Mo", "Go"];
   let v = bytes / 1024;
   let i = 0;
   while (v >= 1024 && i < units.length - 1) {

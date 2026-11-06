@@ -10,11 +10,14 @@ export function OptionsPanel({
   count,
   onRun,
   onClose,
+  disabledReason,
 }: {
   op: OperationDescriptor;
   count: number;
   onRun: (values: OptionValues) => void;
   onClose: () => void;
+  /** When set, the run button is disabled and this explains why. */
+  disabledReason?: string;
 }) {
   const { t } = useI18n();
   const [values, setValues] = useState<OptionValues>(() => rememberedOptions(op.id, op.options));
@@ -39,7 +42,12 @@ export function OptionsPanel({
           <Field key={spec.id} spec={spec} value={values[spec.id]} onChange={(v) => set(spec.id, v)} />
         ))}
       </div>
-      <button onClick={run} className="mt-3 w-full rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-white hover:brightness-110">
+      {disabledReason && <p className="mt-3 text-xs text-muted">{disabledReason}</p>}
+      <button
+        onClick={run}
+        disabled={Boolean(disabledReason)}
+        className="mt-3 w-full rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-on-accent hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+      >
         {count > 1 ? t("run.startCount", { count }) : t("run.start")}
       </button>
     </div>
@@ -85,6 +93,7 @@ function Field({ spec, value, onChange }: { spec: OptionSpec; value: OptionValue
               <button
                 key={c.value}
                 onClick={() => onChange(c.value)}
+                aria-pressed={value === c.value}
                 className={`rounded-md border px-2 py-1 text-xs ${
                   value === c.value ? "border-accent bg-accent-soft text-accent" : "border-border hover:border-accent"
                 }`}
@@ -104,7 +113,7 @@ function Field({ spec, value, onChange }: { spec: OptionSpec; value: OptionValue
             placeholder={t(spec.placeholderKey)}
             value={value == null ? "" : String(value)}
             onChange={(e) => onChange(e.target.value)}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1 text-sm outline-none focus:border-accent"
+            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1 text-sm focus:border-accent"
           />
         </label>
       );
@@ -120,7 +129,7 @@ function Field({ spec, value, onChange }: { spec: OptionSpec; value: OptionValue
               placeholder={t("opt.auto")}
               value={value == null ? "" : String(value)}
               onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-              className="w-24 rounded-md border border-border bg-surface px-2 py-1 text-right text-sm outline-none focus:border-accent"
+              className="w-24 rounded-md border border-border bg-surface px-2 py-1 text-right text-sm focus:border-accent"
             />
             {spec.unit && <span className="text-xs text-muted">{spec.unit}</span>}
           </span>

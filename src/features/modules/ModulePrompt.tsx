@@ -6,6 +6,7 @@ import { errorText, formatSize, isCancelled } from "../../lib/api";
 import type { ModuleInfo } from "../../lib/types";
 import { ModuleProgressBar } from "./ModuleProgressBar";
 import { useModules } from "./modules";
+import { Dialog } from "../ui/Dialog";
 
 export function ModulePrompt({ module, onInstalled, onClose }: { module: ModuleInfo; onInstalled: () => void; onClose: () => void }) {
   const { t } = useI18n();
@@ -24,8 +25,7 @@ export function ModulePrompt({ module, onInstalled, onClose }: { module: ModuleI
   };
 
   return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-6">
-      <div className="w-full max-w-md space-y-4 rounded-xl border border-border bg-surface p-6 shadow-xl">
+    <Dialog title={t("module.prompt.title", { module: module.name })} onClose={current ? undefined : onClose} closeOnBackdrop={false}>
         <h2 className="text-lg font-bold">{t("module.prompt.title", { module: module.name })}</h2>
         <p className="text-sm text-muted">{t(`module.${module.id}.why`)}</p>
         <ul className="space-y-1 text-sm text-muted">
@@ -35,7 +35,11 @@ export function ModulePrompt({ module, onInstalled, onClose }: { module: ModuleI
         </ul>
 
         {current && <ModuleProgressBar progress={current} />}
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && (
+          <p role="alert" className="selectable text-sm text-danger">
+            {error}
+          </p>
+        )}
 
         <div className="flex justify-end gap-2">
           {current ? (
@@ -47,13 +51,12 @@ export function ModulePrompt({ module, onInstalled, onClose }: { module: ModuleI
               <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm text-muted hover:bg-surface-2">
                 {t("run.close")}
               </button>
-              <button onClick={start} className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90">
+              <button onClick={start} className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-on-accent hover:opacity-90">
                 {error ? t("module.prompt.retry") : t("module.prompt.download", { size: formatSize(module.downloadSize) })}
               </button>
             </>
           )}
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }

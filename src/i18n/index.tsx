@@ -15,7 +15,8 @@ const I18nContext = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: T
 
 const STORAGE_KEY = "convix.lang";
 
-function initialLang(): Lang {
+/** Language before React starts (error screen, first paint). */
+export function initialLang(): Lang {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved && saved in dictionaries) return saved as Lang;
@@ -26,9 +27,15 @@ function initialLang(): Lang {
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(initialLang);
+  const [lang, setLangState] = useState<Lang>(() => {
+    const l = initialLang();
+    document.documentElement.lang = l;
+    return l;
+  });
 
-  const setLang = useCallback((l: Lang) => {
+  const setLang = useCallback((wanted: Lang) => {
+    // Never trust the value: an unknown language would leave every text undefined.
+    const l: Lang = wanted in dictionaries ? wanted : "fr";
     setLangState(l);
     document.documentElement.lang = l;
     try {
