@@ -15,6 +15,7 @@ fn op(id: &str, category: OperationCategory, output: Format, label_key: &'static
         converter: "pdf",
         category,
         output: Some(output),
+        output_suffix: None, // TODO(Phase 3): "-min" for compress, "-merged" for merge…
         label_key,
         multi_input: false,
         requires: &[],

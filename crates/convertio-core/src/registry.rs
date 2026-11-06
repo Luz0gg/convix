@@ -27,6 +27,11 @@ impl Registry {
         self.converters.iter().flat_map(|c| c.operations_for(input)).collect()
     }
 
+    /// The descriptor of `operation_id` for a file of `input` format, if offered.
+    pub fn describe(&self, input: Format, operation_id: &str) -> Option<OperationDescriptor> {
+        self.operations_for(input).into_iter().find(|o| o.id == operation_id)
+    }
+
     pub fn find(&self, converter_id: &str) -> Option<&Arc<dyn Converter>> {
         self.converters.iter().find(|c| c.id() == converter_id)
     }

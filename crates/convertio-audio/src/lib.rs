@@ -76,6 +76,7 @@ impl Converter for AudioConverter {
                     converter: self.id(),
                     category: OperationCategory::Extract,
                     output: Some(to),
+                    output_suffix: None,
                     label_key: "op.extractAudio",
                     multi_input: false,
                     requires: REQUIRES,

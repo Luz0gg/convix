@@ -28,8 +28,9 @@ infer = "0.19"
 codegen-units = 1
 lto = true
 opt-level = 3
-panic = "abort"
 strip = true
+# panic stays "unwind" on purpose: a decoder bug on a corrupt file must fail that one job
+# (caught with catch_unwind), not crash the whole app.
 
 # Image/audio codecs are painfully slow unoptimized: optimize deps even in dev.
 [profile.dev.package."*"]

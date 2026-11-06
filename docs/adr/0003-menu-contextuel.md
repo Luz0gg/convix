@@ -11,4 +11,4 @@ Le chef de projet veut convertir depuis l'Explorateur sans ouvrir l'app, dès la
 - Interrupteur dans les réglages + nettoyage à la désinstallation.
 
 ## Conséquences
-- Sous Windows 11, l'entrée apparaît dans « Afficher plus d'options » (Maj+F10). L'intégration au nouveau menu Windows 11 (COM `IExplorerCommand` + package MSIX sparse, qui exige une signature de code) est repoussée après la V1.
+- Sous Windows 11, l'entrée apparaît dans « Afficher plus d'options » (Maj+F10). L'intégration au nouveau menu Windows 11 (COM `IExplorerCommand` + package MSIX sparse) exige une signature de code payante : **abandonnée** (décision du 2026-11-06, pas de certificat).

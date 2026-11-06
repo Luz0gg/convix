@@ -28,6 +28,7 @@ pub enum Format {
     Ico,
     Heic,
     Svg,
+    Tga,
     // Audio
     Mp3,
     Wav,
@@ -58,6 +59,7 @@ impl Format {
         Format::Ico,
         Format::Heic,
         Format::Svg,
+        Format::Tga,
         Format::Mp3,
         Format::Wav,
         Format::Flac,
@@ -76,7 +78,7 @@ impl Format {
     pub fn kind(self) -> MediaKind {
         use Format::*;
         match self {
-            Png | Jpeg | Webp | Avif | Gif | Bmp | Tiff | Ico | Heic | Svg => MediaKind::Image,
+            Png | Jpeg | Webp | Avif | Gif | Bmp | Tiff | Ico | Heic | Svg | Tga => MediaKind::Image,
             Mp3 | Wav | Flac | Aac | M4a | Ogg | Opus => MediaKind::Audio,
             Mp4 | Mov | Mkv | Webm | Avi => MediaKind::Video,
             Pdf => MediaKind::Document,
@@ -97,6 +99,7 @@ impl Format {
             Ico => "ico",
             Heic => "heic",
             Svg => "svg",
+            Tga => "tga",
             Mp3 => "mp3",
             Wav => "wav",
             Flac => "flac",
@@ -127,6 +130,7 @@ impl Format {
             Ico => "ICO",
             Heic => "HEIC",
             Svg => "SVG",
+            Tga => "TGA",
             Mp3 => "MP3",
             Wav => "WAV",
             Flac => "FLAC",
@@ -157,6 +161,7 @@ impl Format {
             "ico" => Ico,
             "heic" | "heif" => Heic,
             "svg" => Svg,
+            "tga" | "targa" => Tga,
             "mp3" => Mp3,
             "wav" | "wave" => Wav,
             "flac" => Flac,

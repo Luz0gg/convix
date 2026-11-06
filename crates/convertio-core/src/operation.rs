@@ -34,6 +34,9 @@ pub struct OperationDescriptor {
     pub category: OperationCategory,
     /// Output format, when the operation produces a known one.
     pub output: Option<Format>,
+    /// Appended to the file name, for results in the same format as the source
+    /// (`photo.png` → `photo-min.png`). `None` for plain conversions.
+    pub output_suffix: Option<&'static str>,
     /// i18n key for the label. For `Convert`, the UI can also build "Convertir en {output}".
     pub label_key: &'static str,
     /// Accepts several files at once and combines them (merge…).
@@ -51,6 +54,7 @@ impl OperationDescriptor {
             converter,
             category: OperationCategory::Convert,
             output: Some(to),
+            output_suffix: None,
             label_key: "op.convert",
             multi_input: false,
             requires: &[],

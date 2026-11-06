@@ -23,10 +23,14 @@ convertio-modules.workspace = true
 
 serde.workspace = true
 serde_json.workspace = true
+rayon = "1"
 
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-dialog = "2"
 # Phase 4: tauri-plugin-updater (needs a signing key + manifest URL first)
-# Phase 1: tauri-plugin-dialog (save-as dialog for the "ask each time" output mode)
-# Phase 1: winreg (Explorer context menu, HKCU only — no admin rights)
+
+[target.'cfg(windows)'.dependencies]
+# Explorer context menu, HKCU only — no admin rights
+winreg = "0.56"

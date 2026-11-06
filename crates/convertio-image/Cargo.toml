@@ -1,6 +1,6 @@
 [package]
 name = "convertio-image"
-description = "ConvertIO image converter (pure Rust, no external module)"
+description = "ConvertIO image converter (built in, no external module)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,10 +9,19 @@ authors.workspace = true
 [dependencies]
 convertio-core.workspace = true
 
-# Planned (Phase 1), added when implemented:
-# image    — decode/encode PNG, JPEG, GIF, BMP, TIFF, ICO, WebP (lossless)
-# oxipng   — lossless PNG optimization
-# mozjpeg  — better JPEG compression
-# webp     — lossy WebP encoding (libwebp)
-# ravif    — AVIF encoding
-# fast_image_resize — SIMD resizing
+# Decode/encode PNG, JPEG, GIF, BMP, TIFF, ICO, WebP, TGA
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "ico", "webp", "tga", "rayon"] }
+# Lossless PNG optimizer (also turns ≤256-color images into palettes)
+oxipng = { version = "10", default-features = false, features = ["parallel"] }
+# Better JPEG compression than the stock encoder (no nasm needed without SIMD feature)
+mozjpeg = { version = "0.10", default-features = false }
+# libwebp: lossy + lossless WebP encoding
+webp = { version = "0.3", default-features = false }
+# AVIF encoding, pure Rust (rav1e) — no asm so no nasm required
+ravif = { version = "0.13", default-features = false, features = ["threading"] }
+rgb = "0.8"
+# SVG rendering
+resvg = "0.49"
+# Palette reduction for "smaller PNG" (MIT, unlike libimagequant which is GPL)
+color_quant = "1"
+rayon = "1"

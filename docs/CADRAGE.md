@@ -57,10 +57,17 @@ Un **logiciel Windows léger** qui convertit n'importe quel fichier en un autre,
 
 **Hors V1 (plus tard) :** vidéo complète (codecs, compression, GIF), HEIC/RAW, SVG, documents bureautiques (Word/Excel → PDF), OCR, upscale IA, suppression de fond, presets personnalisés partagés, macOS/Linux.
 
+### Décisions du 2026-11-06 (suite)
+
+| Sujet | Décision |
+|---|---|
+| Nom | Le dépôt **reste public** ; on choisit **un autre nom dans le même esprit** que ConvertIO. |
+| Priorité | **Tout le pôle image d'abord** (Phase 1), avant l'audio et le PDF. |
+| Dossier surveillé | **Jamais.** ConvertIO reste un outil où l'on glisse-dépose soi-même. |
+| Signature de code payante | **Non.** On accepte l'avertissement SmartScreen à l'installation (« Informations complémentaires › Exécuter quand même »). Le clic droit natif Windows 11 (qui exige une signature) est donc abandonné : on garde le menu « Afficher plus d'options ». |
+
 ## 5. Questions encore ouvertes
 
-- [ ] **Nom définitif** (et vérification de disponibilité : domaine, GitHub, marque).
+- [ ] **Nom définitif** : choisir dans la liste proposée (vérifier domaine, GitHub, marque).
 - [ ] **Logo / identité visuelle.**
 - [ ] **Presets** : quels raccourcis « 1 clic » veux-tu en premier ? (ex. « WebP → PNG », « WAV → MP3 320 »).
-- [ ] **Signature de code Windows** (certificat payant, évite l'alerte SmartScreen) : maintenant ou plus tard ?
-- [ ] **Conversion automatique d'un dossier surveillé** (ex. tout ce qui arrive dans `Téléchargements\*.webp` → PNG) : utile pour toi ?

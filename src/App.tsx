@@ -1,18 +1,71 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { useI18n } from "./i18n";
-import { api, ext } from "./lib/api";
-import type { FileInfo, LaunchRequest, OperationDescriptor } from "./lib/types";
+import { api, dirName, ext, rememberedOptions } from "./lib/api";
+import { supports } from "./lib/ops";
+import type { FileInfo, JobEvent, LaunchRequest, OperationDescriptor, OptionValues, Settings } from "./lib/types";
 import { DropZone } from "./features/drop/DropZone";
 import { useFileDrop } from "./features/drop/useFileDrop";
+import { BatchBar } from "./features/files/BatchBar";
 import { FileCard } from "./features/files/FileCard";
+import { SettingsPanel } from "./features/settings/SettingsPanel";
 
 type Toast = { kind: "ok" | "error"; text: string };
+/** Which options panel is open: on one file (its path) or on the batch bar. */
+type Selection = { scope: string; op: OperationDescriptor } | null;
+const BATCH = "__batch__";
 
 export default function App() {
-  const { t, lang, setLang } = useI18n();
+  const { t, setLang } = useI18n();
   const [files, setFiles] = useState<FileInfo[]>([]);
+  const [jobs, setJobs] = useState<Record<string, JobEvent>>({});
+  const [selection, setSelection] = useState<Selection>(null);
+  const [running, setRunning] = useState<string[]>([]);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
+  const settingsRef = useRef<Settings | null>(null);
+  settingsRef.current = settings;
+
+  // ---- settings: Rust is the source of truth ----
+  useEffect(() => {
+    api.getSettings().then((s) => {
+      setSettings(s);
+      setLang(s.language);
+    });
+  }, [setLang]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!settings || settings.theme === "system") delete root.dataset.theme;
+    else root.dataset.theme = settings.theme;
+  }, [settings?.theme]);
+
+  const changeSettings = async (next: Settings) => {
+    setSettings(next);
+    setLang(next.language);
+    try {
+      setSettings(await api.updateSettings(next));
+    } catch (e) {
+      setToast({ kind: "error", text: String(e) });
+    }
+  };
+
+  // ---- toasts disappear by themselves ----
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(id);
+  }, [toast]);
+
+  // ---- per-file progress ----
+  useEffect(() => {
+    const off = listen<JobEvent>("job-event", (e) => setJobs((prev) => ({ ...prev, [e.payload.input]: e.payload })));
+    return () => {
+      off.then((fn) => fn());
+    };
+  }, []);
 
   const addPaths = useCallback(async (paths: string[]) => {
     const infos = await api.inspectFiles(paths);
@@ -20,56 +73,121 @@ export default function App() {
       const known = new Set(prev.map((f) => f.path));
       return [...prev, ...infos.filter((f) => !known.has(f.path))];
     });
+    return infos;
   }, []);
 
   const { hovering } = useFileDrop(addPaths);
 
-  // Files passed by the Explorer context menu (at startup or to the already-open window).
-  // TODO(Phase 1): when `operation` is set, run it directly instead of just listing the files.
+  // ---- run an operation on one or many files ----
+  const runOp = useCallback(
+    async (op: OperationDescriptor, targets: FileInfo[], options: OptionValues) => {
+      const compatible = targets.filter((f) => supports(f, op.id));
+      if (compatible.length === 0) return;
+
+      let outputDir: string | null = null;
+      let outputPath: string | null = null;
+      if (settingsRef.current?.output.mode === "askEachTime") {
+        if (compatible.length === 1) {
+          const f = compatible[0];
+          const sameFormat = op.output === f.format;
+          const outExt = sameFormat ? (f.name.split(".").pop() ?? "") : ext(op.output ?? "");
+          const stem = f.name.replace(/\.[^.]+$/, "");
+          outputPath = await save({
+            defaultPath: `${dirName(f.path)}\\${stem}${op.outputSuffix ?? ""}.${outExt}`,
+            filters: [{ name: outExt.toUpperCase(), extensions: [outExt] }],
+          });
+          if (!outputPath) return;
+        } else {
+          const dir = await open({ directory: true });
+          if (typeof dir !== "string") return;
+          outputDir = dir;
+        }
+      }
+
+      const batchId = crypto.randomUUID();
+      setSelection(null);
+      setRunning((r) => [...r, batchId]);
+      try {
+        const results = await api.runBatch({
+          batchId,
+          operationId: op.id,
+          inputs: compatible.map((f) => f.path),
+          options,
+          outputDir,
+          outputPath,
+        });
+        const done = results.filter((r) => r.status === "done").length;
+        const failed = results.filter((r) => r.status === "failed").length;
+        if (results.length > 1) setToast({ kind: failed ? "error" : "ok", text: t("batch.summary", { done, failed }) });
+      } catch (e) {
+        setToast({ kind: "error", text: String(e) });
+      } finally {
+        setRunning((r) => r.filter((id) => id !== batchId));
+      }
+    },
+    [t],
+  );
+
+  // ---- Explorer context menu: files (and maybe an operation) passed at launch ----
   useEffect(() => {
-    const handle = (req: LaunchRequest | null) => req && addPaths(req.files);
+    const handle = async (req: LaunchRequest | null) => {
+      if (!req) return;
+      const infos = await addPaths(req.files);
+      if (!req.operation) return;
+      const op = infos.flatMap((f) => f.operations).find((o) => o.id === req.operation);
+      if (op) runOp(op, infos, rememberedOptions(op.id, op.options));
+    };
     api.takeLaunchRequest().then(handle);
     const off = listen<LaunchRequest>("launch-request", (e) => handle(e.payload));
     return () => {
       off.then((fn) => fn());
     };
-  }, [addPaths]);
+  }, [addPaths, runOp]);
 
-  const run = async (file: FileInfo, op: OperationDescriptor) => {
-    const options = Object.fromEntries(op.options.map((o) => [o.id, o.default]));
-    try {
-      const out = await api.runOperation({
-        operationId: op.id,
-        inputs: [file.path],
-        options,
-        outputExt: ext(op.output ?? file.format ?? ""),
-      });
-      setToast({ kind: "ok", text: t("job.done", { file: out.join(", ") }) });
-    } catch (e) {
-      setToast({ kind: "error", text: t("job.failed", { error: String(e) }) });
-    }
+  const removeFile = (path: string) => {
+    setFiles((prev) => prev.filter((f) => f.path !== path));
+    setJobs(({ [path]: _, ...rest }) => rest);
   };
+  const clearDone = () => {
+    const done = new Set(Object.values(jobs).filter((j) => j.status === "done").map((j) => j.input));
+    setFiles((prev) => prev.filter((f) => !done.has(f.path)));
+  };
+  const hasDone = Object.values(jobs).some((j) => j.status === "done" && files.some((f) => f.path === j.input));
 
   return (
     <div className="flex h-full flex-col gap-4 p-5">
-      <header className="flex items-center justify-between">
+      <header className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold">
             Convert<span className="text-accent">IO</span>
           </h1>
           <p className="text-sm text-muted">{t("app.tagline")}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {running.length > 0 && (
+            <button
+              onClick={() => running.forEach((id) => api.cancelBatch(id))}
+              className="rounded-lg border border-danger px-3 py-1.5 text-sm text-danger hover:bg-danger/10"
+            >
+              {t("run.cancel")}
+            </button>
+          )}
+          {hasDone && (
+            <button onClick={clearDone} className="rounded-lg px-3 py-1.5 text-sm text-muted hover:bg-surface-2">
+              {t("files.clearDone")}
+            </button>
+          )}
           {files.length > 0 && (
-            <button onClick={() => setFiles([])} className="rounded-lg px-3 py-1.5 text-sm text-muted hover:bg-surface-2">
+            <button onClick={() => (setFiles([]), setJobs({}))} className="rounded-lg px-3 py-1.5 text-sm text-muted hover:bg-surface-2">
               {t("files.clear")}
             </button>
           )}
           <button
-            onClick={() => setLang(lang === "fr" ? "en" : "fr")}
+            onClick={() => setShowSettings(true)}
             className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-surface-2"
+            aria-label={t("app.settings")}
           >
-            {t("lang.switch")}
+            ⚙ {t("app.settings")}
           </button>
         </div>
       </header>
@@ -78,21 +196,34 @@ export default function App() {
 
       {files.length > 0 && (
         <section className="flex-1 space-y-3 overflow-y-auto pr-1">
+          {files.length > 1 && (
+            <BatchBar
+              files={files}
+              selectedOp={selection?.scope === BATCH ? selection.op : null}
+              onSelect={(op) => setSelection(op ? { scope: BATCH, op } : null)}
+              onRun={(op, values) => runOp(op, files, values)}
+            />
+          )}
           {files.map((f) => (
             <FileCard
               key={f.path}
               file={f}
-              onRun={run}
-              onRemove={() => setFiles((prev) => prev.filter((x) => x.path !== f.path))}
+              job={jobs[f.path]}
+              selectedOp={selection?.scope === f.path ? selection.op : null}
+              onSelect={(op) => setSelection(op ? { scope: f.path, op } : null)}
+              onRun={(op, values) => runOp(op, [f], values)}
+              onRemove={() => removeFile(f.path)}
             />
           ))}
         </section>
       )}
 
+      {showSettings && settings && <SettingsPanel settings={settings} onChange={changeSettings} onClose={() => setShowSettings(false)} />}
+
       {toast && (
         <div
           onClick={() => setToast(null)}
-          className={`fixed bottom-4 left-1/2 max-w-[90%] -translate-x-1/2 cursor-pointer rounded-lg px-4 py-2 text-sm shadow-lg ${
+          className={`fixed bottom-4 left-1/2 z-30 max-w-[90%] -translate-x-1/2 cursor-pointer rounded-lg px-4 py-2 text-sm shadow-lg ${
             toast.kind === "ok" ? "bg-success text-black" : "bg-danger text-white"
           }`}
         >

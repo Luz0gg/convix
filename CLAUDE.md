@@ -20,6 +20,15 @@
 - `src-tauri/src` : `lib.rs` (démarrage, état), `commands.rs` (API pour l'UI), `cli.rs` (`--op <id> fichiers…`), `shell_integration.rs` (clic droit).
 - `src/` : React. Appels Rust **uniquement** via `src/lib/api.ts`. Types miroirs dans `src/lib/types.ts` (à garder synchronisés avec Rust). Textes **uniquement** via `t("clé")` avec la clé dans `src/i18n/fr.json` **et** `en.json`.
 - Les ids d'opération (`image.convert.png`) sont **stables** : presets et clic droit en dépendent. Ne pas les renommer.
+- Un convertisseur n'est enregistré dans `build_registry` (`src-tauri/src/lib.rs`) **que lorsqu'il fonctionne** : l'interface ne doit jamais proposer une action qui renvoie « pas encore implémenté ».
+- `src-tauri/src/jobs.rs` : exécution en lot (rayon), `catch_unwind` par fichier, réservation du nom de sortie (`output::reserve`) puis écriture atomique (`output::write_atomic`).
+- Le menu clic droit liste `EXTENSIONS` dans `shell_integration.rs` : garder `src-tauri/windows/hooks.nsh` (désinstallation) synchronisé.
+
+## Tester l'interface sans Tauri
+`pnpm dev` puis ouvrir http://localhost:1420 dans un navigateur : `src/dev/mockTauri.ts` simule la partie Rust (dev uniquement). Dans la console : `__mockDrop()` simule un glisser-déposer. Config prête dans `.claude/launch.json` (`ui-mock`).
+
+## Tester la vraie chaîne sans glisser-déposer
+`pnpm tauri build --debug --no-bundle` puis `target\debug\convertio.exe --op image.convert.png "C:\...\photo.webp"` : c'est exactement ce que fait le clic droit.
 
 ## Commandes
 - `pnpm app:dev` — app en développement
