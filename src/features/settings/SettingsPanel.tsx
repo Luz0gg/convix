@@ -2,7 +2,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useEffect, useState, type ReactNode } from "react";
 import { useI18n } from "../../i18n";
-import { api, formatSize } from "../../lib/api";
+import { api, errorText, formatSize, isCancelled } from "../../lib/api";
 import type { Settings } from "../../lib/types";
 import { ModuleProgressBar } from "../modules/ModuleProgressBar";
 import { useModules } from "../modules/modules";
@@ -40,8 +40,7 @@ function ModulesList() {
   const run = (action: () => Promise<void>) => {
     setError(null);
     action().catch((e) => {
-      const text = String(e);
-      if (!text.includes("annulée")) setError(text);
+      if (!isCancelled(e)) setError(errorText(t, e));
     });
   };
 

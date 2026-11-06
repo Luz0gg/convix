@@ -2,7 +2,7 @@
 // After the download, the action the user asked for runs by itself.
 import { useState } from "react";
 import { useI18n } from "../../i18n";
-import { formatSize } from "../../lib/api";
+import { errorText, formatSize, isCancelled } from "../../lib/api";
 import type { ModuleInfo } from "../../lib/types";
 import { ModuleProgressBar } from "./ModuleProgressBar";
 import { useModules } from "./modules";
@@ -19,8 +19,7 @@ export function ModulePrompt({ module, onInstalled, onClose }: { module: ModuleI
       await install(module.id);
       onInstalled();
     } catch (e) {
-      const text = String(e);
-      if (!text.includes("annulée")) setError(text);
+      if (!isCancelled(e)) setError(errorText(t, e));
     }
   };
 

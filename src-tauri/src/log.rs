@@ -1,5 +1,8 @@
-//! Local error log: `<app_local_data>/logs/convix.log` (never sent anywhere).
-//! What failed, on which file, plus crashes — so a bug report can include it.
+//! Local error log: `%LOCALAPPDATA%\io.github.luz0gg.convix\logs\convix.log` (never sent anywhere).
+//! What failed, on which file, plus crashes and how the app ended — so a bug report can include it.
+//!
+//! Started first thing in `run()` (before Tauri and its plugins), so even a crash during
+//! startup leaves a line. Every normal exit writes "exit": a session without one was killed.
 
 use std::{
     io::Write,
@@ -11,6 +14,14 @@ use std::{
 static LOG: OnceLock<Mutex<PathBuf>> = OnceLock::new();
 /// Past this size, the log is renamed to `convix.old.log` and starts over.
 const MAX_SIZE: u64 = 1024 * 1024;
+/// Same as `identifier` in tauri.conf.json (Tauri's `app_local_data_dir`).
+const IDENTIFIER: &str = "io.github.luz0gg.convix";
+
+/// Default log folder, computed without Tauri (available before the app is built).
+pub fn default_dir() -> Option<PathBuf> {
+    let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from)?;
+    Some(base.join(IDENTIFIER).join("logs"))
+}
 
 pub fn init(dir: &Path) {
     let _ = std::fs::create_dir_all(dir);
@@ -18,31 +29,49 @@ pub fn init(dir: &Path) {
     if std::fs::metadata(&path).is_ok_and(|m| m.len() > MAX_SIZE) {
         let _ = std::fs::rename(&path, dir.join("convix.old.log"));
     }
-    let _ = LOG.set(Mutex::new(path));
+    if LOG.set(Mutex::new(path)).is_err() {
+        return; // already started
+    }
 
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        let place = info.location().map(|l| format!(" ({}:{})", l.file(), l.line())).unwrap_or_default();
+        let place = info
+            .location()
+            .map(|l| format!(" ({}:{})", l.file(), l.line()))
+            .unwrap_or_default();
         let message = info
             .payload()
             .downcast_ref::<&str>()
             .map(|s| s.to_string())
             .or_else(|| info.payload().downcast_ref::<String>().cloned())
             .unwrap_or_default();
-        write("CRASH", &format!("{message}{place}"));
+        let thread = std::thread::current();
+        let thread = thread.name().unwrap_or("?");
+        write("CRASH", &format!("[{thread}] {message}{place}"));
         default_hook(info);
     }));
 }
 
 pub fn path() -> Option<PathBuf> {
-    LOG.get().map(|p| p.lock().unwrap_or_else(|e| e.into_inner()).clone())
+    LOG.get()
+        .map(|p| p.lock().unwrap_or_else(|e| e.into_inner()).clone())
 }
 
 pub fn write(level: &str, message: &str) {
     let Some(lock) = LOG.get() else { return };
+    // Held while writing: lines from parallel jobs never interleave.
     let path = lock.lock().unwrap_or_else(|e| e.into_inner());
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&*path) {
-        let _ = writeln!(f, "{} {level:5} {}", timestamp(), message.replace('\n', " "));
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&*path)
+    {
+        let _ = writeln!(
+            f,
+            "{} {level:5} {}",
+            timestamp(),
+            message.replace(['\r', '\n'], " ")
+        );
     }
 }
 
@@ -56,7 +85,10 @@ pub fn error(message: &str) {
 
 /// `2026-11-06 14:03:27Z` (UTC) without pulling a date crate.
 fn timestamp() -> String {
-    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
     let (days, rem) = (secs / 86_400, secs % 86_400);
     // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
     let z = days as i64 + 719_468;
@@ -68,7 +100,12 @@ fn timestamp() -> String {
     let day = doy - (153 * mp + 2) / 5 + 1;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = yoe + era * 400 + i64::from(month <= 2);
-    format!("{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02}Z", rem / 3600, rem % 3600 / 60, rem % 60)
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02}Z",
+        rem / 3600,
+        rem % 3600 / 60,
+        rem % 60
+    )
 }
 
 #[cfg(test)]
@@ -78,5 +115,12 @@ mod tests {
         let t = super::timestamp();
         assert_eq!(t.len(), 20, "{t}");
         assert!(t.starts_with("20") && t.ends_with('Z'));
+    }
+
+    #[test]
+    fn default_dir_uses_identifier() {
+        if let Some(dir) = super::default_dir() {
+            assert!(dir.ends_with(r"io.github.luz0gg.convix\logs") || dir.ends_with("io.github.luz0gg.convix/logs"));
+        }
     }
 }

@@ -59,6 +59,14 @@ pub struct Runner {
     pub settings: Settings,
 }
 
+/// Same file on disk (case, `.\`, short names…), or same path if it doesn't exist yet.
+fn same_file(a: &Path, b: &Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a == b,
+    }
+}
+
 fn size_of(p: &Path) -> u64 {
     std::fs::metadata(p).map(|m| m.len()).unwrap_or(0)
 }
@@ -173,15 +181,10 @@ impl Runner {
                 status: JobStatus::Cancelled,
                 ..base
             },
-            Err(Error::ModuleMissing(id)) => JobEvent {
-                status: JobStatus::Failed,
-                error: Some(format!("le module {id} n'est pas installé")),
-                error_code: Some(format!("moduleMissing:{id}")),
-                ..base
-            },
             Err(e) => JobEvent {
                 status: JobStatus::Failed,
                 error: Some(e.to_string()),
+                error_code: Some(e.code()),
                 ..base
             },
         };
@@ -223,6 +226,13 @@ impl Runner {
         let out_fmt = op.output.unwrap_or(in_fmt);
 
         let out = match explicit {
+            // Chosen in a save dialog (Windows already asked before replacing a file),
+            // but never one of the files being converted.
+            Some(p) if inputs.iter().any(|i| same_file(i, p)) => {
+                return Err(Error::Failed(
+                    "le fichier de sortie ne peut pas être le fichier d'origine".into(),
+                ));
+            }
             Some(p) => p.to_path_buf(),
             None => {
                 let ext = output_extension(input, in_fmt, out_fmt);
@@ -241,8 +251,7 @@ impl Runner {
             modules: &locate,
         };
         let result = std::panic::catch_unwind(AssertUnwindSafe(|| self.registry.run(&ctx)))
-            .unwrap_or_else(|_| Err(Error::Failed("erreur interne pendant la conversion".into())));
-        if result.is_err() {
+            .unwrap_or_else(|_| Err(Error::Failed("erreur interne pendant la conversion".into())));        if result.is_err() {
             output::discard(&out);
         }
         result

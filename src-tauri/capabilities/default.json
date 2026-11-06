@@ -1,14 +1,23 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions of the main window",
-  "windows": ["main"],
+  "description": "Permissions of the main window: only what the interface uses",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
-    "opener:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://github.com/Luz0gg/*"
+        }
+      ]
+    },
     "opener:allow-reveal-item-in-dir",
-    "dialog:default",
-    "updater:default",
-    "process:allow-restart"
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "updater:default"
   ]
 }

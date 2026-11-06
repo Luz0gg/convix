@@ -78,3 +78,22 @@ export function rememberOptions(opId: string, values: OptionValues) {
   // Also on the Rust side: right-click conversions run without the window.
   api.rememberOptions(opId, values).catch(() => {});
 }
+
+type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+/** Errors from Rust that only mean "the user stopped it": nothing to show. */
+export const isCancelled = (e: unknown) => String(e) === "cancelled";
+
+/**
+ * Human text for an error coming from Rust. Known codes (`busy`, `io.locked`,
+ * `moduleMissing:ffmpeg`…) are translated; anything else is shown as sent.
+ */
+export function errorText(t: Translate, error: unknown, code?: string | null): string {
+  const raw = String(error ?? "");
+  const c = code ?? raw;
+  if (c.startsWith("moduleMissing:")) return t("error.moduleMissing", { module: c.slice("moduleMissing:".length) });
+  if (c === "invalidOption") return t("error.invalidOption", { detail: raw });
+  if (["busy", "cancelled", "unsupportedFormat", "unknownOperation", "io.notFound", "io.denied", "io.locked", "io.diskFull"].includes(c))
+    return t(`error.${c}`);
+  return raw;
+}

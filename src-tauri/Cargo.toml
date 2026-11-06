@@ -32,7 +32,6 @@ tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
 # Updates from GitHub Releases, checked with our signing key; Windows TLS (SChannel).
 tauri-plugin-updater = { version = "2", default-features = false, features = ["native-tls", "system-proxy"] }
-tauri-plugin-process = "2"
 
 [target.'cfg(windows)'.dependencies]
 # Explorer context menu, HKCU only — no admin rights

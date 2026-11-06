@@ -197,6 +197,21 @@ pub fn uninstall() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
+mod sync_tests {
+    /// The uninstaller (NSIS, can't read our Rust list) must clean every extension we write.
+    #[test]
+    fn uninstaller_lists_every_extension() {
+        let nsh = include_str!("../windows/hooks.nsh");
+        for ext in super::EXTENSIONS {
+            for verb in std::iter::once(&super::VERB).chain(super::LEGACY_VERBS) {
+                let line = format!(r"SystemFileAssociations\.{ext}\shell\{verb}");
+                assert!(nsh.contains(&line), "hooks.nsh is missing {line}");
+            }
+        }
+    }
+}
+
 #[cfg(all(test, windows))]
 mod tests {
     use super::*;

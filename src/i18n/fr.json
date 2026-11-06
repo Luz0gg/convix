@@ -123,5 +123,16 @@
   "update.install": "Installer et redémarrer",
   "update.later": "Plus tard",
   "update.downloading": "Téléchargement de la mise à jour…",
-  "settings.about": "version {version}"
+  "settings.about": "version {version}",
+  "error.busy": "Une conversion ou un téléchargement est en cours : réessaie quand il sera fini.",
+  "error.cancelled": "Annulé",
+  "error.unsupportedFormat": "Format de fichier non reconnu ou non pris en charge",
+  "error.unknownOperation": "Action inconnue",
+  "error.invalidOption": "Réglage invalide : {detail}",
+  "error.moduleMissing": "Le module {module} n'est pas installé",
+  "error.io.notFound": "Fichier introuvable (déplacé ou supprimé ?)",
+  "error.io.denied": "Accès refusé (dossier protégé ou fichier en lecture seule)",
+  "error.io.locked": "Fichier utilisé par un autre programme : ferme-le puis réessaie",
+  "error.io.diskFull": "Disque plein",
+  "error.internal": "Erreur interne pendant la conversion"
 }

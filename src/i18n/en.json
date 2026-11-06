@@ -123,5 +123,16 @@
   "update.install": "Install and restart",
   "update.later": "Later",
   "update.downloading": "Downloading the update…",
-  "settings.about": "version {version}"
+  "settings.about": "version {version}",
+  "error.busy": "A conversion or download is running: try again once it is done.",
+  "error.cancelled": "Cancelled",
+  "error.unsupportedFormat": "Unknown or unsupported file format",
+  "error.unknownOperation": "Unknown action",
+  "error.invalidOption": "Invalid setting: {detail}",
+  "error.moduleMissing": "The {module} module is not installed",
+  "error.io.notFound": "File not found (moved or deleted?)",
+  "error.io.denied": "Access denied (protected folder or read-only file)",
+  "error.io.locked": "File in use by another program: close it and try again",
+  "error.io.diskFull": "Disk full",
+  "error.internal": "Internal error during the conversion"
 }

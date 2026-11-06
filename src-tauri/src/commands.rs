@@ -3,9 +3,9 @@
 use crate::{
     AppState,
     cli::LaunchRequest,
-    jobs::{self, BatchRequest, JobEvent, Runner},
+    jobs::{self, BatchRequest, JobEvent},
     settings::{self, Settings},
-    shell_integration,
+    sync,
 };
 use convix_core::{CancelToken, Format, MediaKind, OperationDescriptor, OptionValues, format};
 use convix_modules::{InstallProgress, ModuleInfo};
@@ -35,33 +35,36 @@ pub fn app_info() -> AppInfo {
 /// Returns (once) the files passed on the command line at startup.
 #[tauri::command]
 pub fn take_launch_request(state: State<'_, AppState>) -> Option<LaunchRequest> {
-    state.pending_launch.lock().ok()?.take()
+    sync::lock(&state.pending_launch).take()
 }
 
 // ---------- settings ----------
 
 #[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> Settings {
-    state.settings.read().unwrap().clone()
+    sync::read(&state.settings).clone()
 }
 
+/// Async on purpose: sync commands run on the UI thread, and rewriting the Explorer menu
+/// (~30 registry keys) there would freeze the window.
 #[tauri::command]
-pub fn update_settings(state: State<'_, AppState>, settings: Settings) -> Result<Settings, String> {
-    let previous = state.settings.read().unwrap().clone();
+pub async fn update_settings(
+    state: State<'_, AppState>,
+    settings: Settings,
+) -> Result<Settings, String> {
+    let settings = settings.sanitized();
+    let previous = sync::read(&state.settings).clone();
     settings::save(&state.settings_path, &settings).map_err(|e| e.to_string())?;
-    *state.settings.write().unwrap() = settings.clone();
+    *sync::write(&state.settings) = settings.clone();
 
     let menu_changed = previous.shell_integration != settings.shell_integration
         || (settings.shell_integration && previous.language != settings.language);
     if menu_changed {
-        if settings.shell_integration {
-            let modules = state.modules.clone();
-            shell_integration::install(&state.registry, &settings.language, &|id| {
-                modules.locate(id).is_some()
-            })?;
-        } else {
-            shell_integration::uninstall()?;
-        }
+        let (registry, modules, s) = (state.registry.clone(), state.modules.clone(), settings.clone());
+        tauri::async_runtime::spawn_blocking(move || crate::sync_shell_menu(&registry, &modules, &s))
+            .await
+            .map_err(|e| e.to_string())?
+            .inspect_err(|e| crate::log::error(&format!("Explorer menu | {e}")))?;
     }
     Ok(settings)
 }
@@ -169,17 +172,15 @@ pub async fn run_batch(
     output_path: Option<PathBuf>,
 ) -> Result<Vec<JobEvent>, String> {
     let cancel = CancelToken::new();
-    state
-        .batches
-        .lock()
-        .unwrap()
-        .insert(batch_id.clone(), cancel.clone());
+    {
+        let mut batches = sync::lock(&state.batches);
+        if batches.contains_key(&batch_id) {
+            return Err(format!("batch {batch_id} already running"));
+        }
+        batches.insert(batch_id.clone(), cancel.clone());
+    }
 
-    let runner = Runner {
-        registry: state.registry.clone(),
-        modules: state.modules.clone(),
-        settings: state.settings.read().unwrap().clone(),
-    };
+    let runner = state.runner();
     let req = BatchRequest {
         batch_id: batch_id.clone(),
         operation_id,
@@ -197,13 +198,13 @@ pub async fn run_batch(
     .await
     .map_err(|e| e.to_string());
 
-    state.batches.lock().unwrap().remove(&batch_id);
+    sync::lock(&state.batches).remove(&batch_id);
     result
 }
 
 #[tauri::command]
 pub fn cancel_batch(state: State<'_, AppState>, batch_id: String) {
-    if let Some(token) = state.batches.lock().unwrap().get(&batch_id) {
+    if let Some(token) = sync::lock(&state.batches).get(&batch_id) {
         token.cancel();
     }
 }
@@ -275,9 +276,12 @@ pub async fn install_module(
 ) -> Result<Vec<ModuleInfo>, String> {
     let cancel = CancelToken::new();
     {
-        let mut batches = state.batches.lock().unwrap();
-        if batches.contains_key(&install_key(&id)) {
-            return Err("téléchargement déjà en cours".into());
+        let mut batches = sync::lock(&state.batches);
+        // Busy: same download running, or a conversion using the module we would replace.
+        if batches.contains_key(&install_key(&id))
+            || (state.modules.locate(&id).is_some() && batches.keys().any(|k| !k.starts_with("module:")))
+        {
+            return Err("busy".into());
         }
         batches.insert(install_key(&id), cancel.clone());
     }
@@ -288,8 +292,10 @@ pub async fn install_module(
         let last = Mutex::new((None, 0u64));
         let progress = |p: InstallProgress| {
             // ~200 events for the whole download, plus every phase change.
-            let mut last = last.lock().unwrap();
-            if last.0 != Some(p.phase) || p.done >= last.1 + p.total / 200 || p.done == p.total {
+            let mut last = sync::lock(&last);
+            // Unknown total (no Content-Length): one event per MiB instead of per chunk.
+            let step = if p.total > 0 { p.total / 200 } else { 1 << 20 };
+            if last.0 != Some(p.phase) || p.done >= last.1 + step || p.done == p.total {
                 *last = (Some(p.phase), p.done);
                 let _ = event_app.emit(
                     MODULE_EVENT,
@@ -303,12 +309,13 @@ pub async fn install_module(
         modules.install(&event_id, &progress, &|| cancel.is_cancelled())
     })
     .await;
-    state.batches.lock().unwrap().remove(&install_key(&id));
+    sync::lock(&state.batches).remove(&install_key(&id));
 
     result.map_err(|e| e.to_string())?.map_err(|e| {
-        if !matches!(e, convix_modules::ModuleError::Cancelled) {
-            crate::log::error(&format!("module {id} | {e}"));
+        if matches!(e, convix_modules::ModuleError::Cancelled) {
+            return "cancelled".to_owned(); // the UI knows this one: no error shown
         }
+        crate::log::error(&format!("module {id} | {e}"));
         e.to_string()
     })?;
     crate::log::info(&format!("module {id} installed"));
@@ -317,11 +324,18 @@ pub async fn install_module(
 }
 
 #[tauri::command]
-pub fn remove_module(state: State<'_, AppState>, id: String) -> Result<Vec<ModuleInfo>, String> {
+pub async fn remove_module(state: State<'_, AppState>, id: String) -> Result<Vec<ModuleInfo>, String> {
     if state.modules.manifest(&id).is_none() {
-        return Err(format!("module inconnu : {id}"));
+        return Err(format!("unknown module: {id}"));
     }
-    state.modules.remove(&id).map_err(|e| e.to_string())?;
+    if sync::lock(&state.batches).keys().any(|k| !k.starts_with("module:")) {
+        return Err("busy".into()); // a conversion may be using it right now
+    }
+    let modules = state.modules.clone();
+    tauri::async_runtime::spawn_blocking(move || modules.remove(&id))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
     crate::refresh_shell_menu(&state);
     Ok(state.modules.list())
 }

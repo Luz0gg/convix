@@ -59,4 +59,5 @@
   DeleteRegKey HKCU "Software\Classes\SystemFileAssociations\.avi\shell\Convix"
   DeleteRegKey HKCU "Software\Classes\SystemFileAssociations\.avi\shell\ConvertIO"
   DeleteRegKey HKCU "Software\Classes\SystemFileAssociations\.pdf\shell\Convix"
+  DeleteRegKey HKCU "Software\Classes\SystemFileAssociations\.pdf\shell\ConvertIO"
 !macroend

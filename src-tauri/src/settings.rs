@@ -35,19 +35,40 @@ impl Default for Settings {
     }
 }
 
+impl Settings {
+    /// Unknown values (hand-edited file, newer version) fall back to the defaults:
+    /// the UI must never receive a language or theme it can't display.
+    pub fn sanitized(mut self) -> Self {
+        if !matches!(self.language.as_str(), "fr" | "en") {
+            self.language = Self::default().language;
+        }
+        if !matches!(self.theme.as_str(), "system" | "dark" | "light") {
+            self.theme = Self::default().theme;
+        }
+        self
+    }
+}
+
 pub fn load(path: &Path) -> Settings {
-    std::fs::read(path)
-        .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default()
+    crate::store::load::<Settings>(path).sanitized()
 }
 
 pub fn save(path: &Path, settings: &Settings) -> std::io::Result<()> {
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
+    crate::store::save(path, settings)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unknown_values_fall_back() {
+        let s: Settings =
+            serde_json::from_str(r#"{"language":"de","theme":"neon","checkUpdates":false}"#).unwrap();
+        let s = s.sanitized();
+        assert_eq!(
+            (s.language.as_str(), s.theme.as_str(), s.check_updates),
+            ("fr", "system", false)
+        );
     }
-    let json = serde_json::to_vec_pretty(settings).map_err(std::io::Error::other)?;
-    let tmp = path.with_extension("json.part");
-    std::fs::write(&tmp, json)?;
-    std::fs::rename(tmp, path)
 }
