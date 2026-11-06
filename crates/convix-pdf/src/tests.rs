@@ -106,14 +106,14 @@ fn merge_split_extract() {
     assert_eq!(page_count(&merged), 5);
 
     let base = output::reserve(dir.path("sample-p.pdf")).unwrap();
-    let parts = run("pdf.split", &[merged.clone()], &base, opts(&[("pages", "1, 4-")])).unwrap();
+    let parts = run("pdf.split", std::slice::from_ref(&merged), &base, opts(&[("pages", "1, 4-")])).unwrap();
     let names: Vec<_> = parts.iter().map(|p| p.file_name().unwrap().to_string_lossy().into_owned()).collect();
     assert_eq!(names, ["sample-p1.pdf", "sample-p4.pdf", "sample-p5.pdf"]);
     assert!(parts.iter().all(|p| page_count(p) == 1));
     assert!(!base.exists(), "placeholder removed");
 
     let extract = dir.path("extract.pdf");
-    run("pdf.extract", &[merged.clone()], &extract, opts(&[("pages", "2-3")])).unwrap();
+    run("pdf.extract", std::slice::from_ref(&merged), &extract, opts(&[("pages", "2-3")])).unwrap();
     assert_eq!(page_count(&extract), 2);
     assert!(run("pdf.extract", &[merged], &extract, opts(&[("pages", "9")])).is_err());
 }
@@ -125,13 +125,13 @@ fn compression_shrinks_photos_and_never_grows() {
     let before = std::fs::metadata(&pdf).unwrap().len();
 
     let smaller = dir.path("smaller.pdf");
-    run("pdf.compress", &[pdf.clone()], &smaller, opts(&[("level", "balanced")])).unwrap();
+    run("pdf.compress", std::slice::from_ref(&pdf), &smaller, opts(&[("level", "balanced")])).unwrap();
     let after = std::fs::metadata(&smaller).unwrap().len();
     assert!(after < before / 2, "{before} → {after}");
     assert_eq!(page_count(&smaller), 3);
 
     let lossless = dir.path("lossless.pdf");
-    run("pdf.compress", &[pdf.clone()], &lossless, opts(&[("level", "lossless")])).unwrap();
+    run("pdf.compress", std::slice::from_ref(&pdf), &lossless, opts(&[("level", "lossless")])).unwrap();
     assert!(std::fs::metadata(&lossless).unwrap().len() <= before);
 }
 
@@ -141,7 +141,7 @@ fn pages_to_images_with_windows_renderer() {
     let dir = Dir::new("render");
     let pdf = sample_pdf(&dir);
     let base = output::reserve(dir.path("sample-p.png")).unwrap();
-    match run("pdf.toImages.png", &[pdf.clone()], &base, opts(&[("dpi", "72"), ("pages", "1-2")])) {
+    match run("pdf.toImages.png", std::slice::from_ref(&pdf), &base, opts(&[("dpi", "72"), ("pages", "1-2")])) {
         Ok(pages) => {
             assert_eq!(pages.len(), 2);
             let img = convix_image::image::open(&pages[0]).unwrap();
@@ -152,4 +152,64 @@ fn pages_to_images_with_windows_renderer() {
         // Some locked-down sessions can't reach WinRT; the real app can.
         Err(e) => eprintln!("skipped: Windows PDF renderer unavailable here: {e}"),
     }
+}
+
+/// Media box width of each page, in order: tells pages apart in the sample documents.
+fn page_widths(path: &Path) -> Vec<i64> {
+    let doc = lopdf::Document::load(path).unwrap();
+    doc.get_pages()
+        .values()
+        .map(|id| {
+            let page = doc.get_dictionary(*id).unwrap();
+            let mb = page.get(b"MediaBox").unwrap().as_array().unwrap();
+            mb[2].as_float().map(|f| f as i64).or_else(|_| mb[2].as_i64()).unwrap()
+        })
+        .collect()
+}
+
+#[test]
+fn extract_keeps_the_typed_order() {
+    let dir = Dir::new("order");
+    // Pages sized like their images: 3 different widths.
+    let a = dir.path("a.png");
+    let b = dir.path("b.png");
+    let c = dir.path("c.png");
+    for (p, w) in [(&a, 100), (&b, 200), (&c, 300)] {
+        RgbImage::from_pixel(w, 50, Rgb([10, 20, 30])).save(p).unwrap();
+    }
+    let pdf = dir.path("three.pdf");
+    run("pdf.fromImages", &[a, b, c], &pdf, opts(&[("pageSize", "image"), ("margin", "false")])).unwrap();
+    let widths = page_widths(&pdf);
+    assert_eq!(widths.len(), 3);
+
+    let out = dir.path("reordered.pdf");
+    run("pdf.extract", &[pdf], &out, opts(&[("pages", "3, 1")])).unwrap();
+    assert_eq!(page_widths(&out), [widths[2], widths[0]]);
+}
+
+#[test]
+fn split_pages_are_small_and_well_named() {
+    let dir = Dir::new("split-size");
+    let pdf = sample_pdf(&dir);
+    let total = std::fs::metadata(&pdf).unwrap().len();
+    // The name is taken: the reserved base becomes "sample-p (1).pdf".
+    std::fs::write(dir.path("sample-p.pdf"), b"user file").unwrap();
+    let base = output::reserve(dir.path("sample-p.pdf")).unwrap();
+    assert!(base.ends_with("sample-p (1).pdf"));
+    let parts = run("pdf.split", &[pdf], &base, opts(&[])).unwrap();
+    let names: Vec<_> = parts.iter().map(|p| p.file_name().unwrap().to_string_lossy().into_owned()).collect();
+    assert_eq!(names, ["sample-p1.pdf", "sample-p2.pdf", "sample-p3.pdf"]);
+    // Each part only carries its own image, not the whole document.
+    let sizes: Vec<u64> = parts.iter().map(|p| std::fs::metadata(p).unwrap().len()).collect();
+    assert!(sizes.iter().sum::<u64>() < total + total / 5, "{sizes:?} vs {total}");
+    assert_eq!(std::fs::read(dir.path("sample-p.pdf")).unwrap(), b"user file");
+}
+
+#[test]
+fn copy_numbers_are_stripped_only_when_they_are_copy_numbers() {
+    assert_eq!(strip_copy_number("doc-p (1)"), "doc-p");
+    assert_eq!(strip_copy_number("doc-p (12)"), "doc-p");
+    assert_eq!(strip_copy_number("doc (draft)"), "doc (draft)");
+    assert_eq!(strip_copy_number("doc ()"), "doc ()");
+    assert_eq!(strip_copy_number("doc"), "doc");
 }

@@ -7,8 +7,12 @@ use std::{
     fs::File,
     io::{BufReader, Read, Write},
     path::Path,
-    time::Duration,
+    sync::mpsc,
+    time::{Duration, Instant},
 };
+
+/// A download with no data at all for this long is abandoned (slow is fine, stuck is not).
+const STALL: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -35,9 +39,12 @@ fn agent() -> ureq::Agent {
                 .root_certs(RootCerts::PlatformVerifier)
                 .build(),
         )
+        .https_only(true)
         .timeout_connect(Some(Duration::from_secs(20)))
-        // Per read: a stalled connection fails instead of hanging forever.
-        .timeout_recv_body(Some(Duration::from_secs(60)))
+        .timeout_recv_response(Some(Duration::from_secs(30)))
+        // No total limit on the body: 35 MB on a slow line can take many minutes.
+        // Stalls are detected in `download` instead.
+        .timeout_recv_body(None)
         .user_agent(concat!("Convix/", env!("CARGO_PKG_VERSION")))
         .build()
         .into()
@@ -53,24 +60,61 @@ pub(crate) fn download(
     let net = |e: ureq::Error| ModuleError::Network(e.to_string());
     let response = agent().get(url).call().map_err(net)?;
     // A little slack over the manifest size, never an unbounded read.
-    let mut body = response.into_body().into_with_config().limit(expected_size + 1024 * 1024).reader();
+    let mut body = response
+        .into_body()
+        .into_with_config()
+        .limit(expected_size + 1024 * 1024)
+        .reader();
+
+    // Reads happen on their own thread so that a stuck connection can still be cancelled
+    // (a blocking read can't be interrupted) and detected as stalled.
+    let (tx, rx) = mpsc::sync_channel::<std::io::Result<Vec<u8>>>(8);
+    std::thread::spawn(move || {
+        let mut buf = vec![0u8; 256 * 1024];
+        loop {
+            let chunk = body.read(&mut buf).map(|n| buf[..n].to_vec());
+            let end = !matches!(&chunk, Ok(c) if !c.is_empty());
+            if tx.send(chunk).is_err() || end {
+                return; // receiver gone (cancelled) or download finished
+            }
+        }
+    });
 
     let mut file = File::create(dest)?;
-    let mut buf = vec![0u8; 256 * 1024];
     let mut done = 0u64;
+    let mut last_data = Instant::now();
     loop {
         if cancelled() {
             return Err(ModuleError::Cancelled);
         }
-        let n = body.read(&mut buf).map_err(|e| ModuleError::Network(e.to_string()))?;
-        if n == 0 {
+        let chunk = match rx.recv_timeout(Duration::from_millis(500)) {
+            Ok(chunk) => chunk.map_err(|e| ModuleError::Network(e.to_string()))?,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                if last_data.elapsed() > STALL {
+                    return Err(ModuleError::Network("plus aucune donnée reçue depuis 60 s".into()));
+                }
+                continue;
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        };
+        if chunk.is_empty() {
             break;
         }
-        file.write_all(&buf[..n])?;
-        done += n as u64;
-        progress(InstallProgress { phase: InstallPhase::Downloading, done, total: expected_size });
+        last_data = Instant::now();
+        file.write_all(&chunk)?;
+        done += chunk.len() as u64;
+        progress(InstallProgress {
+            phase: InstallPhase::Downloading,
+            done,
+            total: expected_size,
+        });
     }
     file.sync_all()?;
+    if done != expected_size {
+        return Err(ModuleError::Network(format!(
+            "téléchargement incomplet ({done} octets sur {expected_size})"
+        )));
+    }
     Ok(())
 }
 

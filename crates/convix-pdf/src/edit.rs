@@ -116,12 +116,86 @@ pub fn merge(mut docs: Vec<Document>) -> Result<Document> {
     Ok(merged)
 }
 
-/// A copy of `doc` keeping only `keep` (1-based page numbers).
-pub fn keep_pages(doc: &Document, keep: &[u32]) -> Document {
-    let mut copy = doc.clone();
-    let count = copy.get_pages().len() as u32;
-    let remove: Vec<u32> = (1..=count).filter(|p| !keep.contains(p)).collect();
-    copy.delete_pages(&remove);
-    tidy(&mut copy);
-    copy
+/// Prepares a document for [`subset`]: inherited page attributes are copied into each page.
+/// Call once, then take as many subsets as needed.
+pub fn prepare_for_subsets(doc: &mut Document) {
+    flatten_inherited(doc);
+}
+
+/// A new document with only `keep` (1-based page numbers), **in that order**.
+///
+/// Only the objects those pages use are copied (contents, fonts, images…), never the whole
+/// file: splitting a 300-page PDF no longer clones it 300 times.
+/// `doc` must have gone through [`prepare_for_subsets`].
+pub fn subset(doc: &Document, keep: &[u32]) -> Document {
+    let numbers = doc.get_pages();
+    let page_ids: Vec<ObjectId> = keep.iter().filter_map(|n| numbers.get(n).copied()).collect();
+    let all_pages: std::collections::HashSet<ObjectId> = numbers.values().copied().collect();
+
+    // Everything reachable from the kept pages, without climbing to the page tree (Parent)
+    // or jumping to pages we drop (links, bookmarks pointing elsewhere).
+    let mut needed: std::collections::BTreeSet<ObjectId> = page_ids.iter().copied().collect();
+    let mut todo: Vec<ObjectId> = page_ids.clone();
+    while let Some(id) = todo.pop() {
+        let Ok(object) = doc.get_object(id) else { continue };
+        let mut refs = Vec::new();
+        collect_refs(object, &mut refs);
+        for r in refs {
+            if all_pages.contains(&r) && !page_ids.contains(&r) {
+                continue;
+            }
+            if needed.insert(r) {
+                todo.push(r);
+            }
+        }
+    }
+
+    let mut out = Document::with_version(doc.version.as_str());
+    for id in &needed {
+        if let Ok(object) = doc.get_object(*id) {
+            out.objects.insert(*id, object.clone());
+        }
+    }
+    let max_id = doc.max_id;
+    let (pages_id, catalog_id) = ((max_id + 1, 0), (max_id + 2, 0));
+    for id in &page_ids {
+        if let Ok(page) = out.get_dictionary_mut(*id) {
+            page.set("Parent", pages_id);
+        }
+    }
+    let mut pages = Dictionary::new();
+    pages.set("Type", "Pages");
+    pages.set("Count", page_ids.len() as i64);
+    pages.set("Kids", page_ids.iter().map(|id| Object::Reference(*id)).collect::<Vec<_>>());
+    out.objects.insert(pages_id, Object::Dictionary(pages));
+    let mut catalog = Dictionary::new();
+    catalog.set("Type", "Catalog");
+    catalog.set("Pages", pages_id);
+    out.objects.insert(catalog_id, Object::Dictionary(catalog));
+    out.trailer.set("Root", catalog_id);
+    out.max_id = max_id + 2;
+
+    tidy(&mut out);
+    out
+}
+
+/// References inside an object. A page's link back to the page tree (`/Parent` of a
+/// `/Page` or `/Pages` node) is not followed: it would pull in every other page.
+/// Other `/Parent` links (form fields, popups) are kept.
+fn collect_refs(object: &Object, out: &mut Vec<ObjectId>) {
+    let dict_refs = |d: &Dictionary, out: &mut Vec<ObjectId>| {
+        let is_tree_node = matches!(d.get(b"Type").and_then(Object::as_name), Ok(b"Page" | b"Pages"));
+        for (k, v) in d.iter() {
+            if !(is_tree_node && k.as_slice() == b"Parent") {
+                collect_refs(v, out);
+            }
+        }
+    };
+    match object {
+        Object::Reference(id) => out.push(*id),
+        Object::Array(items) => items.iter().for_each(|o| collect_refs(o, out)),
+        Object::Dictionary(d) => dict_refs(d, out),
+        Object::Stream(s) => dict_refs(&s.dict, out),
+        _ => {}
+    }
 }

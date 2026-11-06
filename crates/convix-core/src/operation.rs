@@ -1,6 +1,6 @@
 //! Operations a converter offers, described as data so the UI can render them generically.
 
-use crate::format::Format;
+use crate::{Error, Result, format::Format};
 use serde::Serialize;
 
 /// Option values chosen by the user, keyed by [`OptionSpec`] id.
@@ -70,6 +70,65 @@ impl OperationDescriptor {
     pub fn requiring(mut self, modules: &'static [&'static str]) -> Self {
         self.requires = modules;
         self
+    }
+
+    /// Keep only valid values for the declared options, before a converter sees them.
+    ///
+    /// Values come from the UI but also from `options.json` (remembered options, editable
+    /// by hand) and may be stale after an update. Unknown ids, wrong types and choices
+    /// that no longer exist are dropped (the converter then uses its default); sliders
+    /// are clamped. A number typed by the user outside its range is an error.
+    pub fn sanitize_options(&self, values: &OptionValues) -> Result<OptionValues> {
+        use serde_json::Value;
+        let mut out = OptionValues::new();
+        for spec in &self.options {
+            let Some(v) = values.get(spec.id()) else { continue };
+            let kept = match spec {
+                OptionSpec::Slider { min, max, .. } => v.as_f64().map(|n| Value::from(n.clamp(*min, *max))),
+                OptionSpec::Toggle { .. } => v.as_bool().map(Value::from),
+                OptionSpec::Select { choices, .. } => v
+                    .as_str()
+                    .filter(|s| choices.iter().any(|c| c.value == *s))
+                    .map(Value::from),
+                OptionSpec::Text { .. } => v.as_str().map(|s| {
+                    Value::from(s.chars().filter(|c| !c.is_control()).take(1000).collect::<String>())
+                }),
+                OptionSpec::Number { id, min, max, .. } => match v.as_f64() {
+                    Some(n) if !n.is_finite()
+                        || min.is_some_and(|m| n < m)
+                        || max.is_some_and(|m| n > m) =>
+                    {
+                        return Err(Error::InvalidOption {
+                            name: (*id).to_owned(),
+                            reason: match (min, max) {
+                                (Some(a), Some(b)) => format!("entre {a} et {b}"),
+                                (Some(a), None) => format!("au moins {a}"),
+                                (None, Some(b)) => format!("au plus {b}"),
+                                (None, None) => "nombre invalide".into(),
+                            },
+                        });
+                    }
+                    Some(n) => Some(Value::from(n)),
+                    None => None, // empty field = default
+                },
+            };
+            if let Some(kept) = kept {
+                out.insert(spec.id().to_owned(), kept);
+            }
+        }
+        Ok(out)
+    }
+}
+
+impl OptionSpec {
+    pub fn id(&self) -> &'static str {
+        match self {
+            OptionSpec::Slider { id, .. }
+            | OptionSpec::Toggle { id, .. }
+            | OptionSpec::Select { id, .. }
+            | OptionSpec::Text { id, .. }
+            | OptionSpec::Number { id, .. } => id,
+        }
     }
 }
 
@@ -152,5 +211,49 @@ impl OptionValuesExt for OptionValues {
     }
     fn str_or<'a>(&'a self, id: &str, default: &'a str) -> &'a str {
         self.get(id).and_then(|v| v.as_str()).unwrap_or(default)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn op() -> OperationDescriptor {
+        OperationDescriptor::convert("audio", Format::Mp3).with_options(vec![
+            OptionSpec::Slider { id: "quality", label_key: "", min: 1.0, max: 100.0, step: 1.0, default: 90.0, unit: None },
+            OptionSpec::Select { id: "loudness", label_key: "", choices: vec![Choice::key("off", ""), Choice::key("-14", "")], default: "off" },
+            OptionSpec::Number { id: "width", label_key: "", min: Some(1.0), max: Some(16384.0), default: None, unit: None },
+            OptionSpec::Toggle { id: "keep", label_key: "", default: true },
+        ])
+    }
+
+    fn values(v: serde_json::Value) -> OptionValues {
+        v.as_object().unwrap().clone()
+    }
+
+    #[test]
+    fn drops_injected_and_unknown_values() {
+        let clean = op()
+            .sanitize_options(&values(json!({
+                "quality": 500, "loudness": "loudnorm,amovie=C\\secret", "keep": "yes", "evil": 1, "width": null
+            })))
+            .unwrap();
+        assert_eq!(clean, values(json!({ "quality": 100.0 })));
+    }
+
+    #[test]
+    fn keeps_valid_values() {
+        let v = values(json!({ "quality": 80, "loudness": "-14", "width": 800, "keep": false }));
+        let clean = op().sanitize_options(&v).unwrap();
+        assert_eq!(clean["loudness"], "-14");
+        assert_eq!(clean["width"], 800.0);
+        assert_eq!(clean["keep"], false);
+    }
+
+    #[test]
+    fn number_out_of_range_is_an_error() {
+        let err = op().sanitize_options(&values(json!({ "width": 200000 }))).unwrap_err();
+        assert!(matches!(err, Error::InvalidOption { .. }));
     }
 }

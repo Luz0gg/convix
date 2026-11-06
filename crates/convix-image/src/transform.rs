@@ -1,6 +1,6 @@
 //! Pixel-level operations: resizing and palette reduction.
 
-use convix_core::{Error, Result};
+use convix_core::{Error, Result, limits};
 use image::{DynamicImage, GenericImageView, imageops::FilterType};
 use rayon::prelude::*;
 
@@ -18,10 +18,24 @@ pub fn resize(img: &DynamicImage, width: Option<u32>, height: Option<u32>, keep_
         }
         (Some(w), None) => (w, scaled(h0, w, w0)),
         (None, Some(h)) => (scaled(w0, h, h0), h),
-        (Some(w), Some(h)) if keep_ratio => return Ok(img.resize(w, h, FilterType::Lanczos3)),
+        (Some(w), Some(h)) if keep_ratio => {
+            let (fw, fh) = scaled_fit(w0, h0, w, h); // fits inside the box
+            limits::check_image_size(fw, fh)?;
+            return Ok(img.resize(w, h, FilterType::Lanczos3));
+        }
         (Some(w), Some(h)) => (w, h),
     };
+    limits::check_image_size(w, h)?;
     Ok(img.resize_exact(w, h, FilterType::Lanczos3))
+}
+
+/// Size of `(w0, h0)` fitted inside `(w, h)`, as `DynamicImage::resize` does.
+fn scaled_fit(w0: u32, h0: u32, w: u32, h: u32) -> (u32, u32) {
+    let ratio = f64::min(f64::from(w) / f64::from(w0), f64::from(h) / f64::from(h0));
+    (
+        (f64::from(w0) * ratio).round().max(1.0) as u32,
+        (f64::from(h0) * ratio).round().max(1.0) as u32,
+    )
 }
 
 /// Reduce to `colors` colors (NeuQuant). Combined with oxipng, which then stores the

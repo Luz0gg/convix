@@ -767,6 +767,7 @@ name = "convix-audio"
 version = "1.0.0"
 dependencies = [
  "convix-core",
+ "windows",
 ]
 
 [[package]]
@@ -815,6 +816,7 @@ dependencies = [
  "convix-core",
  "convix-image",
  "lopdf",
+ "rayon",
  "windows",
  "windows-future",
 ]

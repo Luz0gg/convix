@@ -76,9 +76,14 @@ pub fn is_opaque(img: &DynamicImage) -> bool {
     if !img.color().has_alpha() {
         return true;
     }
-    match img.as_rgba8() {
-        Some(b) => b.pixels().all(|p| p[3] == 255),
-        None => img.to_rgba8().pixels().all(|p| p[3] == 255),
+    // Read the alpha channel where it is, without copying the whole image.
+    match img {
+        DynamicImage::ImageRgba8(b) => b.pixels().all(|p| p[3] == u8::MAX),
+        DynamicImage::ImageLumaA8(b) => b.pixels().all(|p| p[1] == u8::MAX),
+        DynamicImage::ImageRgba16(b) => b.pixels().all(|p| p[3] == u16::MAX),
+        DynamicImage::ImageLumaA16(b) => b.pixels().all(|p| p[1] == u16::MAX),
+        DynamicImage::ImageRgba32F(b) => b.pixels().all(|p| p[3] >= 1.0),
+        other => other.to_rgba8().pixels().all(|p| p[3] == u8::MAX),
     }
 }
 
@@ -86,10 +91,16 @@ fn to_8bit(img: &DynamicImage) -> DynamicImage {
     if is_opaque(img) { DynamicImage::ImageRgb8(img.to_rgb8()) } else { DynamicImage::ImageRgba8(img.to_rgba8()) }
 }
 
-fn to_tiff_compatible(img: &DynamicImage) -> DynamicImage {
+fn to_tiff_compatible(img: &DynamicImage) -> std::borrow::Cow<'_, DynamicImage> {
     match img {
-        DynamicImage::ImageRgb16(_) | DynamicImage::ImageRgba16(_) | DynamicImage::ImageLuma16(_) | DynamicImage::ImageLuma8(_) => img.clone(),
-        _ => to_8bit(img),
+        // Written as they are: no copy.
+        DynamicImage::ImageRgb16(_)
+        | DynamicImage::ImageRgba16(_)
+        | DynamicImage::ImageLuma16(_)
+        | DynamicImage::ImageLuma8(_)
+        | DynamicImage::ImageRgb8(_) => std::borrow::Cow::Borrowed(img),
+        DynamicImage::ImageRgba8(_) if !is_opaque(img) => std::borrow::Cow::Borrowed(img),
+        _ => std::borrow::Cow::Owned(to_8bit(img)),
     }
 }
 

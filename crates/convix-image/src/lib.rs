@@ -188,8 +188,8 @@ impl Converter for ImageConverter {
                 "op.resize",
                 "-resized",
                 vec![
-                    OptionSpec::Number { id: "width", label_key: "opt.width", min: Some(1.0), max: None, default: None, unit: Some("px") },
-                    OptionSpec::Number { id: "height", label_key: "opt.height", min: Some(1.0), max: None, default: None, unit: Some("px") },
+                    OptionSpec::Number { id: "width", label_key: "opt.width", min: Some(1.0), max: Some(65535.0), default: None, unit: Some("px") },
+                    OptionSpec::Number { id: "height", label_key: "opt.height", min: Some(1.0), max: Some(65535.0), default: None, unit: Some("px") },
                     OptionSpec::Toggle { id: "keepRatio", label_key: "opt.keepRatio", default: true },
                 ],
             ));
@@ -442,6 +442,45 @@ mod tests {
         let bytes = thumbnail(&src, 32).unwrap();
         let img = image::load_from_memory(&bytes).unwrap();
         assert_eq!((img.width(), img.height()), (32, 24));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn huge_svg_is_refused_not_rendered() {
+        let dir = temp_dir("svgbomb");
+        let src = dir.join("bomb.svg");
+        std::fs::write(&src, r##"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="10000000"><rect width="1" height="10" fill="#e33"/></svg>"##).unwrap();
+        let err = thumbnail(&src, 160).unwrap_err();
+        assert!(err.to_string().contains("trop grande"), "{err}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn resize_to_absurd_size_is_refused() {
+        let img = image::DynamicImage::ImageRgba8(RgbaImage::new(4, 4));
+        assert!(transform::resize(&img, Some(60_000), Some(60_000), false).is_err());
+        assert!(transform::resize(&img, Some(60_000), Some(60_000), true).is_err());
+        assert!(transform::resize(&img, Some(8), None, true).is_ok());
+    }
+
+    #[test]
+    fn svg_never_loads_network_or_absolute_images() {
+        let dir = temp_dir("svghref");
+        RgbaImage::from_pixel(2, 2, Rgba([0, 255, 0, 255])).save(dir.join("ok.png")).unwrap();
+        let abs = dir.join("ok.png").display().to_string();
+        let src = dir.join("links.svg");
+        // A UNC path would make Windows contact "evil-host": must be ignored, not followed.
+        let svg = format!(
+            r##"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="6" height="2"><image x="0" width="2" height="2" xlink:href="ok.png"/><image x="2" width="2" height="2" xlink:href="\\evil-host\share\x.png"/><image x="4" width="2" height="2" xlink:href="{abs}"/></svg>"##
+        );
+        std::fs::write(&src, svg).unwrap();
+        let r = registry();
+        let op = r.describe(Format::Svg, "image.convert.png").unwrap();
+        let out = run(&r, &src, &op, OptionValues::new()).unwrap();
+        let png = image::open(out).unwrap().to_rgba8();
+        assert_eq!(png.get_pixel(0, 0).0, [0, 255, 0, 255], "relative image is drawn");
+        assert_eq!(png.get_pixel(3, 0).0[3], 0, "network image is skipped");
+        assert_eq!(png.get_pixel(5, 0).0[3], 0, "absolute path is skipped");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

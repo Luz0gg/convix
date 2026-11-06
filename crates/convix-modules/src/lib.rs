@@ -292,13 +292,18 @@ impl ModuleManager {
     /// Uninstall a module (files and index entry).
     pub fn remove(&self, id: &str) -> Result<()> {
         let _guard = self.index_lock.lock().unwrap_or_else(|e| e.into_inner());
+        // Move the files out of the way first: if the module is running (ffmpeg.exe busy),
+        // Windows refuses and nothing changes — instead of an index saying "removed"
+        // while the files are still there.
+        let dir = self.root.join(id);
+        let trash = self.root.join(format!("{id}.removed-{}", std::process::id()));
+        if dir.exists() {
+            std::fs::rename(&dir, &trash)?;
+        }
         let mut index = self.installed();
         index.modules.retain(|m| m.id != id);
         self.write_index(&index)?;
-        let dir = self.root.join(id);
-        if dir.exists() {
-            std::fs::remove_dir_all(dir)?;
-        }
+        let _ = std::fs::remove_dir_all(&trash);
         Ok(())
     }
 }

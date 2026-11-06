@@ -73,11 +73,10 @@ fn size_of(p: &Path) -> u64 {
 
 /// Keep the user's extension spelling for same-format results (`photo.jpeg` → `photo-min.jpeg`).
 fn output_extension(input: &Path, input_format: Format, output_format: Format) -> String {
-    if input_format == output_format {
-        if let Some(ext) = input.extension().and_then(|e| e.to_str()) {
+    if input_format == output_format
+        && let Some(ext) = input.extension().and_then(|e| e.to_str()) {
             return ext.to_ascii_lowercase();
         }
-    }
     output_format.extension().to_owned()
 }
 
@@ -223,6 +222,7 @@ impl Runner {
         {
             return Err(Error::ModuleMissing((*missing).to_owned()));
         }
+        let options = op.sanitize_options(&req.options)?;
         let out_fmt = op.output.unwrap_or(in_fmt);
 
         let out = match explicit {
@@ -245,7 +245,7 @@ impl Runner {
             operation_id: &req.operation_id,
             inputs,
             output: out.clone(),
-            options: &req.options,
+            options: &options,
             progress: &|f: f32| on_progress(f),
             cancel,
             modules: &locate,

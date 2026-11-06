@@ -14,6 +14,9 @@ use windows::{
 };
 use windows_future::IAsyncOperation;
 
+/// Longest side of a rendered page, in pixels.
+const MAX_RENDER_SIDE: f32 = 16000.0;
+
 fn win_err(context: &str) -> impl Fn(windows::core::Error) -> Error + '_ {
     move |e| Error::Failed(format!("{context} ({})", e.message()))
 }
@@ -53,9 +56,15 @@ impl Rendered {
         let page = self.doc.GetPage(index).map_err(win_err("page introuvable"))?;
         // Page size is in device-independent pixels (1/96 inch).
         let size = page.Size().map_err(win_err("PDF"))?;
-        let scale = dpi as f32 / 96.0;
-        let width = (size.Width * scale).round().clamp(1.0, 16000.0) as u32;
-        let height = (size.Height * scale).round().clamp(1.0, 16000.0) as u32;
+        // One factor for both sides, so very large pages (posters, banners) shrink to
+        // 16000 px on their longest side instead of being squashed.
+        let mut scale = dpi as f32 / 96.0;
+        let longest = size.Width.max(size.Height) * scale;
+        if longest > MAX_RENDER_SIDE {
+            scale *= MAX_RENDER_SIDE / longest;
+        }
+        let width = (size.Width * scale).round().max(1.0) as u32;
+        let height = (size.Height * scale).round().max(1.0) as u32;
 
         let options = PdfPageRenderOptions::new().map_err(win_err("PDF"))?;
         options.SetDestinationWidth(width).map_err(win_err("PDF"))?;

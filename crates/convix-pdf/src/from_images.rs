@@ -1,6 +1,7 @@
 //! Images → PDF, one page per image. JPEG photos are embedded as they are (no quality loss,
 //! no size growth); other images are stored losslessly.
 
+use rayon::prelude::*;
 use convix_core::{CancelToken, Error, Format, Result, format};
 use convix_image::image::{DynamicImage, GenericImageView, ImageDecoder, ImageReader, metadata::Orientation};
 use lopdf::{Dictionary, Document, Object, Stream};
@@ -82,26 +83,31 @@ fn decoded(path: &Path, fmt: Format) -> Result<Placed> {
     let img = convix_image::decode(path, fmt, None)?.image;
     let (width, height) = img.dimensions();
     let gray = matches!(img, DynamicImage::ImageLuma8(_) | DynamicImage::ImageLuma16(_));
-    let stream = if gray {
+    let mut stream = if gray {
         Stream::new(image_dict(width, height, "DeviceGray"), img.to_luma8().into_raw())
     } else {
         Stream::new(image_dict(width, height, "DeviceRGB"), img.to_rgb8().into_raw())
     };
     // Transparency → soft mask, so PNG logos keep their transparent background.
-    let smask = (!convix_image::is_opaque(&img)).then(|| {
+    let mut smask = (!convix_image::is_opaque(&img)).then(|| {
         let alpha: Vec<u8> = img.to_rgba8().pixels().map(|p| p.0[3]).collect();
         Stream::new(image_dict(width, height, "DeviceGray"), alpha)
     });
+    // Compressed right away: 100 raw 4K screenshots would otherwise sit in memory (~2.5 GB)
+    // until the whole document is saved.
+    let _ = stream.compress();
+    if let Some(mask) = smask.as_mut() {
+        let _ = mask.compress();
+    }
     Ok(Placed { stream, smask, width, height })
 }
 
 fn place(path: &Path) -> Result<Placed> {
     let fmt = format::detect(path)?.ok_or(Error::UnsupportedFormat)?;
-    if fmt == Format::Jpeg {
-        if let Some(p) = raw_jpeg(path) {
+    if fmt == Format::Jpeg
+        && let Some(p) = raw_jpeg(path) {
             return Ok(p);
         }
-    }
     decoded(path, fmt)
 }
 
@@ -110,9 +116,16 @@ pub fn build(images: &[PathBuf], size: PageSize, cancel: &CancelToken) -> Result
     let pages_id = doc.new_object_id();
     let mut kids = Vec::new();
 
-    for path in images {
-        cancel.check()?;
-        let Placed { mut stream, smask, width, height } = place(path)?;
+    // Decoded in parallel (a few at a time per core), placed in the original order.
+    let placed: Vec<Placed> = images
+        .par_iter()
+        .map(|path| {
+            cancel.check()?;
+            place(path)
+        })
+        .collect::<Result<_>>()?;
+
+    for Placed { mut stream, smask, width, height } in placed {
         if let Some(mask) = smask {
             let mask_id = doc.add_object(mask);
             stream.dict.set("SMask", mask_id);

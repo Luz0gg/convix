@@ -1,11 +1,13 @@
 //! Driving `ffmpeg.exe`: probing a file, running a conversion with real progress
 //! (`-progress pipe:1`), cancellation (the process is killed) and readable errors.
 
-use convix_core::{Error, JobContext, Result};
+use convix_core::{Error, JobContext, Result, output};
 use std::{
     io::{BufRead, BufReader, Read},
-    path::{Path, PathBuf},
+    path::Path,
     process::{Command, Stdio},
+    sync::mpsc,
+    time::Duration,
 };
 
 /// Sample format of the source, to keep lossless outputs as precise as the input.
@@ -35,7 +37,11 @@ impl Probe {
     }
 }
 
-const LOSSY_CODECS: &[&str] = &["mp3", "mp2", "aac", "vorbis", "opus", "ac3", "eac3", "wmav2", "amr_nb", "amr_wb"];
+const LOSSY_CODECS: &[&str] = &[
+    "mp3", "mp2", "mp1", "aac", "vorbis", "opus", "ac3", "eac3", "dts", "dca", "wmav1", "wmav2", "wmapro",
+    "wmavoice", "amr_nb", "amr_wb", "cook", "atrac3", "atrac3p", "ra_144", "ra_288", "qdm2", "nellymoser", "speex",
+    "gsm", "gsm_ms",
+];
 
 /// Read what `ffmpeg -i <file>` prints about the file (it exits with an error, that is expected).
 pub fn parse_probe(stderr: &str) -> Probe {
@@ -114,13 +120,14 @@ fn tail_of_log(log: &str) -> String {
     lines[lines.len().saturating_sub(2)..].join(" — ")
 }
 
-/// Encode into `<output>.part`, then rename over the reserved output name.
+/// Encode into a fresh temporary file next to `output`, then rename it over the reserved name.
+///
+/// Progress lines are read on their own thread so that cancelling works even when ffmpeg
+/// is stuck (slow network share…): the process is killed within ~200 ms.
 pub fn run(exe: &Path, input: &Path, output: &Path, args: &[String], duration: Option<f64>, ctx: &JobContext) -> Result<()> {
-    let mut part = output.as_os_str().to_owned();
-    part.push(".part");
-    let part = PathBuf::from(part);
+    let part = output::temp_beside(output)?;
 
-    let mut child = command(exe)
+    let spawned = command(exe)
         .args(["-y", "-loglevel", "error", "-progress", "pipe:1", "-nostats"])
         .arg("-i")
         .arg(file_arg(input))
@@ -128,8 +135,15 @@ pub fn run(exe: &Path, input: &Path, output: &Path, args: &[String], duration: O
         .arg(file_arg(&part))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()
-        .map_err(spawn_error)?;
+        .spawn();
+    let mut child = match spawned {
+        Ok(c) => c,
+        Err(e) => {
+            let _ = std::fs::remove_file(&part);
+            return Err(spawn_error(e));
+        }
+    };
+    job::attach(&child);
 
     // Drain stderr on its own thread so a chatty ffmpeg can never block on a full pipe.
     let mut stderr = child.stderr.take().expect("piped");
@@ -138,25 +152,41 @@ pub fn run(exe: &Path, input: &Path, output: &Path, args: &[String], duration: O
         let _ = stderr.read_to_string(&mut s);
         s
     });
+    // Progress: `out_time_us` (or the older, misnamed `out_time_ms`) is in microseconds.
+    let (tx, rx) = mpsc::channel::<f64>();
+    let stdout = BufReader::new(child.stdout.take().expect("piped"));
+    std::thread::spawn(move || {
+        for line in stdout.lines() {
+            let Ok(line) = line else { break };
+            let micros = line.strip_prefix("out_time_us=").or_else(|| line.strip_prefix("out_time_ms="));
+            if let Some(us) = micros.and_then(|v| v.parse::<f64>().ok())
+                && tx.send(us).is_err() {
+                    break;
+                }
+        }
+    });
 
     let mut cancelled = false;
-    let stdout = BufReader::new(child.stdout.take().expect("piped"));
-    for line in stdout.lines() {
-        let Ok(line) = line else { break };
+    let status = loop {
         if ctx.cancel.is_cancelled() {
             cancelled = true;
             let _ = child.kill();
-            break;
+            break child.wait()?;
         }
-        // `out_time_us` (or the older, misnamed `out_time_ms`) is in microseconds.
-        let micros = line.strip_prefix("out_time_us=").or_else(|| line.strip_prefix("out_time_ms="));
-        if let (Some(us), Some(total)) = (micros.and_then(|v| v.parse::<f64>().ok()), duration) {
-            if total > 0.0 {
-                ctx.progress.progress((us / 1_000_000.0 / total).clamp(0.0, 1.0) as f32);
+        match rx.recv_timeout(Duration::from_millis(200)) {
+            Ok(us) => {
+                if let Some(total) = duration.filter(|t| *t > 0.0) {
+                    ctx.progress.progress((us / 1_000_000.0 / total).clamp(0.0, 1.0) as f32);
+                }
             }
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+            // stdout closed: ffmpeg is finishing.
+            Err(mpsc::RecvTimeoutError::Disconnected) => match child.try_wait()? {
+                Some(status) => break status,
+                None => std::thread::sleep(Duration::from_millis(50)),
+            },
         }
-    }
-    let status = child.wait()?;
+    };
     let log = log.join().unwrap_or_default();
 
     let finish = || -> Result<()> {
@@ -167,14 +197,63 @@ pub fn run(exe: &Path, input: &Path, output: &Path, args: &[String], duration: O
             let reason = tail_of_log(&log);
             return Err(Error::Failed(if reason.is_empty() { "FFmpeg a échoué".into() } else { format!("FFmpeg : {reason}") }));
         }
-        std::fs::rename(&part, output)?;
-        Ok(())
+        output::commit(&part, output)
     };
     let result = finish();
     if result.is_err() {
         let _ = std::fs::remove_file(&part);
     }
     result
+}
+
+/// Every ffmpeg we start belongs to one Windows "job" that dies with Convix: if the app is
+/// closed or crashes mid-conversion, no ffmpeg.exe keeps running in the background.
+#[cfg(windows)]
+mod job {
+    use std::{os::windows::io::AsRawHandle, process::Child, sync::OnceLock};
+    use windows::Win32::{
+        Foundation::HANDLE,
+        System::JobObjects::{
+            AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation, SetInformationJobObject,
+        },
+    };
+
+    struct Job(HANDLE);
+    // The handle is only used for AssignProcessToJobObject, which is thread-safe.
+    unsafe impl Send for Job {}
+    unsafe impl Sync for Job {}
+
+    fn job() -> Option<&'static Job> {
+        static JOB: OnceLock<Option<Job>> = OnceLock::new();
+        JOB.get_or_init(|| unsafe {
+            let handle = CreateJobObjectW(None, None).ok()?;
+            let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            SetInformationJobObject(
+                handle,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const _,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            )
+            .ok()?;
+            Some(Job(handle)) // never closed: the OS closes it when Convix exits
+        })
+        .as_ref()
+    }
+
+    pub fn attach(child: &Child) {
+        if let Some(job) = job() {
+            unsafe {
+                let _ = AssignProcessToJobObject(job.0, HANDLE(child.as_raw_handle()));
+            }
+        }
+    }
+}
+
+#[cfg(not(windows))]
+mod job {
+    pub fn attach(_: &std::process::Child) {}
 }
 
 /// 3 s stereo 440 Hz tone, for tests.

@@ -3,7 +3,7 @@
 //! Requires the free Store codecs: "HEIF Image Extensions" (+ "HEVC Video Extensions")
 //! for HEIC, "AV1 Video Extension" for AVIF. Many Windows 11 PCs already have them.
 
-use convix_core::{Error, Format, Result};
+use convix_core::{Error, Format, Result, limits};
 use image::{DynamicImage, RgbaImage, metadata::Orientation};
 use std::path::Path;
 use windows::{
@@ -62,6 +62,7 @@ pub fn decode(path: &Path, format: Format) -> Result<DynamicImage> {
             .map_err(wic_err("pixel format"))?;
         let (mut w, mut h) = (0u32, 0u32);
         converter.GetSize(&mut w, &mut h).map_err(wic_err("size"))?;
+        limits::check_image_size(w, h)?;
         let mut buf = vec![0u8; w as usize * h as usize * 4];
         converter.CopyPixels(std::ptr::null(), w * 4, &mut buf).map_err(wic_err("pixels"))?;
 

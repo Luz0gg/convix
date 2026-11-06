@@ -1,5 +1,5 @@
 //! Audio conversions via the `ffmpeg` module (downloaded on first use).
-//! Also offers "extract audio" on video files â€” handy for editing.
+//! Also offers "extract audio" on video files — handy for editing.
 
 mod ffmpeg;
 
@@ -150,7 +150,7 @@ fn encode_args(to: Format, info: &Probe, ctx: &JobContext) -> Vec<String> {
     let mut args: Vec<String> = Vec::new();
     let mut push = |a: &[&str]| args.extend(a.iter().map(|s| s.to_string()));
 
-    // First audio track only; drop video/cover art; keep tags (artist, titleâ€¦).
+    // First audio track only; drop video/cover art; keep tags (artist, title…).
     push(&["-map", "0:a:0", "-vn", "-sn", "-dn", "-map_metadata", "0"]);
 
     let loudness = o.str_or("loudness", "off");
@@ -158,15 +158,18 @@ fn encode_args(to: Format, info: &Probe, ctx: &JobContext) -> Vec<String> {
         push(&["-af", &format!("loudnorm=I={loudness}:TP=-1.5:LRA=11")]);
     }
     match o.str_or("sampleRate", "source") {
+        // Opus always encodes at 48 kHz: ffmpeg picks it by itself.
+        _ if to == Format::Opus => {}
         "source" if loudness != "off" => {
-            // loudnorm works at 192 kHz: bring the result back to the source rate.
+            // loudnorm works at 192 kHz: bring the result back to the source rate,
+            // within what the lossy encoders accept (MP3/AAC/Vorbis: 48 kHz max).
             if let Some(rate) = info.sample_rate {
+                let rate = if is_lossless(to) { rate } else { rate.min(48_000) };
                 push(&["-ar", &rate.to_string()]);
             }
         }
         "source" => {}
-        rate if to != Format::Opus => push(&["-ar", rate]),
-        _ => {}
+        rate => push(&["-ar", rate]),
     }
 
     let depth = match o.str_or("bitDepth", "source") {
@@ -236,7 +239,7 @@ mod tests {
     fn audio_and_video_get_operations() {
         let ops = AudioConverter.operations_for(Format::Wav);
         assert!(ops.iter().any(|o| o.id == "audio.convert.mp3"));
-        assert!(!ops.iter().any(|o| o.id == "audio.convert.wav"), "no WAV â†’ WAV");
+        assert!(!ops.iter().any(|o| o.id == "audio.convert.wav"), "no WAV → WAV");
         assert!(ops.iter().all(|o| o.requires == ["ffmpeg"]));
         let ops = AudioConverter.operations_for(Format::Mov);
         assert!(ops.iter().any(|o| o.id == "audio.extract.wav"));
@@ -266,8 +269,94 @@ mod tests {
         assert!(args.contains("pcm_s24le"), "{args}");
     }
 
+    #[test]
+    fn loudness_never_forces_a_rate_lossy_encoders_refuse() {
+        let (mut options, cancel) = (OptionValues::new(), CancelToken::new());
+        options.insert("loudness".into(), "-16".into());
+        let inputs = [PathBuf::from("hires.flac")];
+        let ctx = ctx_with(&options, &cancel, &inputs);
+        let info = ffmpeg::parse_probe("  Stream #0:0: Audio: flac, 96000 Hz, stereo, s32 (24 bit)\n");
+        let mp3 = encode_args(Format::Mp3, &info, &ctx).join(" ");
+        assert!(mp3.contains("-ar 48000"), "{mp3}");
+        let opus = encode_args(Format::Opus, &info, &ctx).join(" ");
+        assert!(!opus.contains("-ar"), "{opus}");
+        let flac = encode_args(Format::Flac, &info, &ctx).join(" ");
+        assert!(flac.contains("-ar 96000"), "{flac}");
+    }
+
+    /// Cancel mid-conversion and 96 kHz + normalization → MP3/Opus, with a real ffmpeg.
+    #[test]
+    fn cancels_and_handles_hires_for_real_when_ffmpeg_is_available() {
+        let Some(exe) = std::env::var_os("CONVIX_FFMPEG").map(PathBuf::from) else {
+            eprintln!("skipped: set CONVIX_FFMPEG");
+            return;
+        };
+        let dir = std::env::temp_dir().join(format!("convix-audio-cancel-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let locate = |id: &str| (id == "ffmpeg").then(|| exe.clone());
+
+        let hires = dir.join("hires.flac");
+        let status = std::process::Command::new(&exe)
+            .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=600:sample_rate=96000", "-ac", "2", "-c:a", "flac"])
+            .arg(&hires)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let inputs = [hires.clone()];
+
+        // 10 minutes of audio normalized to MP3, cancelled after 300 ms.
+        let cancel = CancelToken::new();
+        let mut options = OptionValues::new();
+        options.insert("loudness".into(), "-14".into());
+        let out = dir.join("hires.mp3");
+        std::fs::write(&out, b"").unwrap(); // the reserved placeholder
+        let ctx = JobContext {
+            operation_id: "audio.convert.mp3",
+            inputs: &inputs,
+            output: out.clone(),
+            options: &options,
+            progress: &|_f: f32| {},
+            cancel: &cancel,
+            modules: &locate,
+        };
+        let started = std::time::Instant::now();
+        let err = std::thread::scope(|s| {
+            s.spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                cancel.cancel();
+            });
+            AudioConverter.run(&ctx).unwrap_err()
+        });
+        assert!(matches!(err, Error::Cancelled), "{err}");
+        assert!(started.elapsed().as_secs() < 5, "cancel took {:?}", started.elapsed());
+        let leftovers: Vec<_> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name()).filter(|n| n.to_string_lossy().ends_with(".part")).collect();
+        assert!(leftovers.is_empty(), "{leftovers:?}");
+
+        // Short 96 kHz excerpt: normalization to MP3 and Opus must succeed.
+        let short = dir.join("short96.flac");
+        ffmpeg::generate_test_file(&exe, &short, &["-ar", "96000", "-c:a", "flac"]).unwrap();
+        let inputs = [short];
+        for (id, ext) in [("audio.convert.mp3", "mp3"), ("audio.convert.opus", "opus")] {
+            let out = dir.join(format!("short96.{ext}"));
+            let cancel = CancelToken::new();
+            let ctx = JobContext {
+                operation_id: id,
+                inputs: &inputs,
+                output: out.clone(),
+                options: &options,
+                progress: &|_f: f32| {},
+                cancel: &cancel,
+                modules: &locate,
+            };
+            AudioConverter.run(&ctx).unwrap_or_else(|e| panic!("{id}: {e}"));
+            assert!(std::fs::metadata(&out).unwrap().len() > 1000, "{id}");
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     /// Full conversions when a real ffmpeg is available:
-    /// `CONVIX_FFMPEG=â€¦\ffmpeg.exe cargo test -p convix-audio`
+    /// `CONVIX_FFMPEG=…\ffmpeg.exe cargo test -p convix-audio`
     #[test]
     fn converts_for_real_when_ffmpeg_is_available() {
         let Some(exe) = std::env::var_os("CONVIX_FFMPEG").map(PathBuf::from) else {

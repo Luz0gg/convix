@@ -140,7 +140,8 @@ impl Converter for PdfConverter {
             }
             "pdf.compress" => compress(first, ctx),
             "pdf.split" | "pdf.extract" => {
-                let doc = edit::load(first)?;
+                let mut doc = edit::load(first)?;
+                edit::prepare_for_subsets(&mut doc);
                 let count = doc.get_pages().len() as u32;
                 let spec = ctx.options.str_or("pages", "");
                 if ctx.operation_id == "pdf.extract" && spec.trim().is_empty() {
@@ -148,13 +149,13 @@ impl Converter for PdfConverter {
                 }
                 let wanted = pages::parse(spec, count)?;
                 if ctx.operation_id == "pdf.extract" {
-                    let mut part = edit::keep_pages(&doc, &wanted);
+                    let mut part = edit::subset(&doc, &wanted);
                     return write_pdf(&ctx.output, &mut part);
                 }
                 let mut outputs = Vec::new();
                 for (i, &page) in wanted.iter().enumerate() {
                     ctx.cancel.check()?;
-                    let mut part = edit::keep_pages(&doc, &[page]);
+                    let mut part = edit::subset(&doc, &[page]);
                     let target = output::reserve(numbered(&ctx.output, page, count))?;
                     write_pdf(&target, &mut part).inspect_err(|_| output::discard(&target))?;
                     outputs.push(target);
@@ -176,14 +177,28 @@ fn write_pdf(target: &Path, doc: &mut lopdf::Document) -> Result<Vec<PathBuf>> {
 }
 
 /// `doc-p.png` + page 7 of 120 → `doc-p007.png` (zero-padded so files sort in page order).
+/// The base was reserved and may be `doc-p (1).png`: the ` (1)` is dropped, the page files
+/// get their own de-duplication (`doc-p007 (1).png`).
 fn numbered(base: &Path, page: u32, count: u32) -> PathBuf {
     let width = count.to_string().len();
     let stem = base.file_stem().unwrap_or_default().to_string_lossy();
+    let stem = strip_copy_number(&stem);
     let name = match base.extension() {
         Some(ext) => format!("{stem}{page:0width$}.{}", ext.to_string_lossy()),
         None => format!("{stem}{page:0width$}"),
     };
     base.with_file_name(name)
+}
+
+/// `"doc-p (3)"` → `"doc-p"`; anything else unchanged.
+fn strip_copy_number(stem: &str) -> &str {
+    if let Some(open) = stem.strip_suffix(')').and_then(|s| s.rfind(" (")) {
+        let digits = &stem[open + 2..stem.len() - 1];
+        if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()) {
+            return &stem[..open];
+        }
+    }
+    stem
 }
 
 fn compress(input: &Path, ctx: &JobContext) -> Result<Vec<PathBuf>> {
@@ -199,8 +214,11 @@ fn compress(input: &Path, ctx: &JobContext) -> Result<Vec<PathBuf>> {
     edit::tidy(&mut doc);
     let bytes = edit::to_bytes(&mut doc)?;
     // Never hand back a bigger file: an already optimised PDF is kept as it is.
-    let original = std::fs::read(input)?;
-    output::write_atomic(&ctx.output, if bytes.len() < original.len() { &bytes } else { &original })?;
+    if bytes.len() as u64 >= std::fs::metadata(input)?.len() {
+        output::write_atomic(&ctx.output, &std::fs::read(input)?)?;
+    } else {
+        output::write_atomic(&ctx.output, &bytes)?;
+    }
     Ok(vec![ctx.output.clone()])
 }
 

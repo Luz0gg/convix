@@ -5,7 +5,7 @@ use convix_image::{
     EncodeSettings, encode,
     image::{self, DynamicImage, GrayImage, RgbImage, imageops::FilterType},
 };
-use convix_core::{CancelToken, Format, Result};
+use convix_core::{CancelToken, Format, Result, limits};
 use lopdf::{Document, Object, Stream};
 
 pub struct ShrinkSettings {
@@ -43,8 +43,10 @@ fn components(doc: &Document, cs: Option<&Object>) -> Option<u8> {
 
 fn decode_pixels(doc: &Document, stream: &Stream) -> Option<(DynamicImage, u8)> {
     let d = &stream.dict;
-    let width = d.get(b"Width").ok()?.as_i64().ok()? as u32;
-    let height = d.get(b"Height").ok()?.as_i64().ok()? as u32;
+    let width = u32::try_from(d.get(b"Width").ok()?.as_i64().ok()?).ok()?;
+    let height = u32::try_from(d.get(b"Height").ok()?.as_i64().ok()?).ok()?;
+    // Declared size checked before decoding anything (a 1 KB stream can claim 100000²).
+    limits::check_image_size(width, height).ok()?;
     if d.has(b"Decode") || d.has(b"ImageMask") || d.get(b"BitsPerComponent").ok()?.as_i64().ok()? != 8 {
         return None;
     }
@@ -56,7 +58,9 @@ fn decode_pixels(doc: &Document, stream: &Stream) -> Option<(DynamicImage, u8)> 
             (img.color().channel_count() == comps).then_some((img, comps))
         }
         b"FlateDecode" => {
-            let raw = stream.decompressed_content().ok()?;
+            // Exactly width × height × components bytes expected: more is a "zip bomb".
+            let expected = width as usize * height as usize * comps as usize;
+            let raw = stream.decompressed_content_with_limit(expected.min(limits::MAX_STREAM_BYTES as usize) + 1024).ok()?;
             match comps {
                 3 => RgbImage::from_raw(width, height, raw).map(|i| (DynamicImage::ImageRgb8(i), 3)),
                 _ => GrayImage::from_raw(width, height, raw).map(|i| (DynamicImage::ImageLuma8(i), 1)),

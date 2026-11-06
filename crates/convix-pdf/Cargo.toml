@@ -10,6 +10,7 @@ authors.workspace = true
 convix-core.workspace = true
 convix-image.workspace = true
 lopdf = { version = "0.47", default-features = false }
+rayon = "1"
 
 # Pages → images with the PDF renderer built into Windows (Windows.Data.Pdf): nothing to download.
 [target.'cfg(windows)'.dependencies]

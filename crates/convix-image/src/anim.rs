@@ -2,9 +2,9 @@
 //! A still file returns `None` and goes through the normal single-image path.
 
 use crate::decode::img_err;
-use convix_core::{Error, Format, Result};
+use convix_core::{Error, Format, Result, limits};
 use image::{
-    AnimationDecoder, Frame,
+    AnimationDecoder, Frame, Frames, ImageDecoder,
     codecs::{
         gif::{GifDecoder, GifEncoder, Repeat},
         png::PngDecoder,
@@ -17,30 +17,53 @@ use std::{fs::File, io::BufReader, path::Path};
 pub fn decode_frames(path: &Path, format: Format) -> Result<Option<Vec<Frame>>> {
     let reader = BufReader::new(File::open(path)?);
     let frames = match format {
-        Format::Gif => GifDecoder::new(reader).map_err(img_err)?.into_frames().collect_frames(),
+        Format::Gif => {
+            let d = GifDecoder::new(reader).map_err(img_err)?;
+            let (w, h) = d.dimensions();
+            collect_limited(d.into_frames(), w, h)?
+        }
         Format::Webp => {
             let d = WebPDecoder::new(reader).map_err(img_err)?;
             if !d.has_animation() {
                 return Ok(None);
             }
-            d.into_frames().collect_frames()
+            let (w, h) = d.dimensions();
+            collect_limited(d.into_frames(), w, h)?
         }
         Format::Png => {
             let d = PngDecoder::new(reader).map_err(img_err)?;
             if !d.is_apng().map_err(img_err)? {
                 return Ok(None);
             }
-            d.apng().map_err(img_err)?.into_frames().collect_frames()
+            let (w, h) = d.dimensions();
+            collect_limited(d.apng().map_err(img_err)?.into_frames(), w, h)?
         }
         _ => return Ok(None),
-    }
-    .map_err(img_err)?;
+    };
     Ok((frames.len() > 1).then_some(frames))
+}
+
+/// Every frame is kept at full canvas size: check the canvas, then stop before the frames
+/// together exceed the memory budget (a tiny GIF can declare 65535 × 65535 × 1000 frames).
+fn collect_limited(frames: Frames<'_>, w: u32, h: u32) -> Result<Vec<Frame>> {
+    limits::check_image_size(w, h)?;
+    let per_frame = u64::from(w) * u64::from(h) * 4;
+    let max_frames = (limits::MAX_ANIMATION_BYTES / per_frame).max(1) as usize;
+    let mut out = Vec::new();
+    for frame in frames {
+        if out.len() >= max_frames {
+            return Err(Error::Failed(format!(
+                "animation trop lourde (plus de {max_frames} images de {w} × {h})"
+            )));
+        }
+        out.push(frame.map_err(img_err)?);
+    }
+    Ok(out)
 }
 
 fn delay_ms(frame: &Frame) -> i32 {
     let (num, den) = frame.delay().numer_denom_ms();
-    (num / den.max(1)) as i32
+    (num / den.max(1)).min(i32::MAX as u32) as i32
 }
 
 pub fn encode_gif(frames: Vec<Frame>) -> Result<Vec<u8>> {
@@ -55,6 +78,9 @@ pub fn encode_gif(frames: Vec<Frame>) -> Result<Vec<u8>> {
 
 pub fn encode_webp(frames: &[Frame], quality: f32, lossless: bool) -> Result<Vec<u8>> {
     let (w, h) = frames[0].buffer().dimensions();
+    if w > 16_383 || h > 16_383 {
+        return Err(Error::Failed(format!("WebP : {w} × {h} dépasse la limite du format (16383 pixels)")));
+    }
     let mut config = webp::WebPConfig::new().map_err(|_| Error::Failed("WebP : configuration impossible".into()))?;
     config.lossless = lossless as i32;
     config.alpha_compression = (!lossless) as i32;
@@ -65,7 +91,7 @@ pub fn encode_webp(frames: &[Frame], quality: f32, lossless: bool) -> Result<Vec
     let mut timestamp = 0;
     for f in frames {
         enc.add_frame(webp::AnimFrame::from_rgba(f.buffer().as_raw(), w, h, timestamp));
-        timestamp += delay_ms(f);
+        timestamp = timestamp.saturating_add(delay_ms(f));
     }
     enc.try_encode().map(|m| m.to_vec()).map_err(|e| Error::Failed(format!("WebP animé : {e:?}")))
 }
