@@ -61,7 +61,7 @@ Un **logiciel Windows léger** qui convertit n'importe quel fichier en un autre,
 
 | Sujet | Décision |
 |---|---|
-| Nom | Le dépôt **reste public** ; nom définitif **Convix** (commence par « Conv », aucun conflit trouvé). Dépôt GitHub à renommer `Luz0gg/convertio` → `Luz0gg/convix` (GitHub redirige automatiquement les anciens liens). |
+| Nom | Le dépôt **reste public** ; nom définitif **Convix** (commence par « Conv », aucun conflit trouvé). Dépôt GitHub renommé `Luz0gg/convix` (les anciens liens `convertio` redirigent automatiquement). |
 | Priorité | **Tout le pôle image d'abord** (Phase 1), avant l'audio et le PDF. |
 | Dossier surveillé | **Jamais.** Convix reste un outil où l'on glisse-dépose soi-même. |
 | Signature de code payante | **Non.** On accepte l'avertissement SmartScreen à l'installation (« Informations complémentaires › Exécuter quand même »). Le clic droit natif Windows 11 (qui exige une signature) est donc abandonné : on garde le menu « Afficher plus d'options ». |

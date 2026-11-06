@@ -306,6 +306,43 @@ mod tests {
             assert_eq!(convix_core::format::detect(&out).unwrap(), Some(to), "{id}");
         }
         assert!(!Path::new(&dir.join("tone.mp3.part")).exists());
+
+        let run = |op: &str, input: &Path, out: &Path| {
+            let (options, inputs) = (OptionValues::new(), [input.to_path_buf()]);
+            let ctx = JobContext {
+                operation_id: op,
+                inputs: &inputs,
+                output: out.to_path_buf(),
+                options: &options,
+                progress: &|_f: f32| {},
+                cancel: &cancel,
+                modules: &locate,
+            };
+            AudioConverter.run(&ctx).unwrap_or_else(|e| panic!("{op}: {e}"));
+        };
+
+        // A 24-bit recording stays 24-bit by default ("same as source").
+        let take24 = dir.join("take24.wav");
+        ffmpeg::generate_test_file(&exe, &take24, &["-c:a", "pcm_s24le"]).unwrap();
+        let flac = dir.join("take24.flac");
+        run("audio.convert.flac", &take24, &flac);
+        assert_eq!(ffmpeg::probe(&exe, &flac).unwrap().depth, Some(Depth::S24));
+
+        // Extract the sound of a video.
+        let clip = dir.join("clip.mp4");
+        ffmpeg::generate_test_file(&exe, &clip, &["-f", "lavfi", "-i", "testsrc=size=160x90:rate=10:duration=3", "-c:v", "libx264", "-c:a", "aac", "-shortest"]).unwrap();
+        let wav = dir.join("clip.wav");
+        run("audio.extract.wav", &clip, &wav);
+        let probed = ffmpeg::probe(&exe, &wav).unwrap();
+        assert_eq!(probed.depth, Some(Depth::S16), "AAC source → 16-bit WAV");
+        assert!(probed.duration.is_some_and(|d| (d - 3.0).abs() < 0.2), "{probed:?}");
+
+        // A video without sound gives a clear message, no output.
+        let mute = dir.join("mute.mp4");
+        ffmpeg::generate_test_file(&exe, &mute, &["-f", "lavfi", "-i", "testsrc=size=160x90:rate=10:duration=1", "-an", "-c:v", "libx264"]).unwrap();
+        let err = ffmpeg::probe(&exe, &mute).unwrap_err().to_string();
+        assert!(err.contains("piste audio"), "{err}");
+
         let _ = std::fs::remove_dir_all(dir);
     }
 }

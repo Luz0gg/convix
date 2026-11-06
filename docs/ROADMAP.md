@@ -39,7 +39,7 @@ Chaque phase se termine par une version utilisable. ✅ fait · 🔜 en cours ·
 - ✅ Extraction audio depuis une vidéo (MP4, MOV, MKV, WebM, AVI)
 - ✅ Progression réelle (lecture de `-progress`), annulation (le processus est arrêté)
 - ✅ Clic droit sur les sons et vidéos (apparaît une fois FFmpeg installé)
-- 🔜 **Conversion réelle à valider** : le code et les tests sont prêts, mais la session de Claude n'a pas eu le droit d'exécuter FFmpeg
+- ✅ Conversions réelles testées avec FFmpeg 9.0.2 : les 7 formats de sortie, normalisation, 24 bits conservé, extraction depuis un MP4, vidéo sans son → message clair
 - ⬜ Extraire l'audio sans réencoder (copie directe de la piste)
 - ⬜ Garder la pochette des MP3/M4A
 

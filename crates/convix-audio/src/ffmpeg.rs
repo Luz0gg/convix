@@ -187,6 +187,17 @@ pub fn generate_test_tone(exe: &Path, dest: &Path) -> std::io::Result<()> {
     if status.success() { Ok(()) } else { Err(std::io::Error::other("ffmpeg failed")) }
 }
 
+/// 3 s tone plus `extra` arguments (codec, an extra video input…), for tests.
+#[cfg(test)]
+pub fn generate_test_file(exe: &Path, dest: &Path, extra: &[&str]) -> std::io::Result<()> {
+    let status = command(exe)
+        .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=3:sample_rate=48000"])
+        .args(extra)
+        .arg(dest)
+        .status()?;
+    if status.success() { Ok(()) } else { Err(std::io::Error::other(format!("ffmpeg failed for {}", dest.display()))) }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
