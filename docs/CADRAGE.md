@@ -72,5 +72,5 @@ Un **logiciel Windows léger** qui convertit n'importe quel fichier en un autre,
 ## 5. Questions encore ouvertes
 
 - [x] **Nom définitif** : **Convix**.
-- [ ] **Logo / identité visuelle.**
+- [x] **Logo** : deux flèches en cercle sur fond bleu (`assets/app-icon.svg`).
 - [ ] **Presets** : quels raccourcis « 1 clic » veux-tu en premier ? (ex. « WebP → PNG », « WAV → MP3 320 »).

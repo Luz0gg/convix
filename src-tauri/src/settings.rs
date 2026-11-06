@@ -18,6 +18,8 @@ pub struct Settings {
     pub shell_integration: bool,
     /// Context-menu conversions run in the background (notification only, no window).
     pub quiet_context_menu: bool,
+    /// Look for a new version at startup (GitHub Releases, signature checked).
+    pub check_updates: bool,
 }
 
 impl Default for Settings {
@@ -28,6 +30,7 @@ impl Default for Settings {
             theme: "system".into(),
             shell_integration: true,
             quiet_context_menu: true,
+            check_updates: true,
         }
     }
 }

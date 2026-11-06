@@ -107,5 +107,21 @@
   "settings.quiet": "Convert in the background",
   "settings.quiet.hint": "From the right-click menu, converts without opening the window and shows a notification when done (using your last settings).",
   "settings.modules": "Modules",
-  "settings.about": "Version {version}"
+  "settings.updates": "Updates",
+  "settings.updates.auto": "Check for updates at startup",
+  "settings.updates.check": "Check now",
+  "settings.updates.checking": "Checking…",
+  "settings.updates.found": "New version available (see the banner)",
+  "settings.updates.upToDate": "Convix is up to date",
+  "settings.updates.error": "Could not check (offline?)",
+  "settings.aboutTitle": "About",
+  "settings.about.text": "100% local file converter: no file is ever sent over the Internet. Free software, MIT license.",
+  "settings.about.bug": "Report a problem",
+  "settings.about.log": "Show the error log",
+  "settings.about.credits": "Thanks to: FFmpeg (gyan.dev), mozjpeg, libwebp, rav1e, oxipng, resvg, lopdf, Tauri.",
+  "update.available": "Convix {version} is available",
+  "update.install": "Install and restart",
+  "update.later": "Later",
+  "update.downloading": "Downloading the update…",
+  "settings.about": "version {version}"
 }

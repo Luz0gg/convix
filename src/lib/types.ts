@@ -65,6 +65,7 @@ export interface Settings {
   theme: "system" | "dark" | "light";
   shellIntegration: boolean;
   quietContextMenu: boolean;
+  checkUpdates: boolean;
 }
 
 export type JobStatus = "running" | "done" | "failed" | "cancelled";

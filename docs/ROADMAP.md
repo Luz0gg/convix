@@ -55,11 +55,15 @@ Chaque phase se termine par une version utilisable. ✅ fait · 🔜 en cours ·
 - ⬜ Glisser-déposer pour réordonner (aujourd'hui : flèches)
 - ⬜ PDF protégés par mot de passe (aujourd'hui : message clair)
 
-## Phase 4 — Livraison ⬜
-- ⬜ Clé de signature des mises à jour + `tauri-plugin-updater` + `latest.json`
-- ⬜ Script de release local (build + `gh release create`), `docs/RELEASE.md`
-- ⬜ Icône et identité visuelle définitives (nom définitif choisi : **Convix**)
-- ⬜ CSP stricte, journal d'erreurs local, écran « À propos »
+## Phase 4 — Livraison ✅ (2026-11-06)
+- ✅ Mises à jour automatiques : `tauri-plugin-updater`, signature vérifiée, `latest.json` sur GitHub Releases, bandeau « Installer et redémarrer », réglage on/off + « Rechercher maintenant »
+- ✅ Clé de signature (hors dépôt, à sauvegarder : voir `docs/RELEASE.md`)
+- ✅ Script de release local `pnpm release -Version X.Y.Z [-Publish]`, guide `docs/RELEASE.md`
+- ✅ Nom définitif **Convix** et icône (2 flèches en cercle, `assets/app-icon.svg`)
+- ✅ CSP stricte (vérifiée dans la vraie app : aucune violation)
+- ✅ Journal d'erreurs local (`%LOCALAPPDATA%\io.github.luz0gg.convix\logs\convix.log`) : échecs, plantages, erreurs de l'interface
+- ✅ Section « À propos » : version, GitHub, signaler un problème, afficher le journal, crédits
+- 🔜 Publier la première Release (v1.0.0) puis tester une vraie mise à jour (v1.0.1)
 - 🎯 **V1.0**
 
 ## Après la V1 (idées validées, ordre à décider)

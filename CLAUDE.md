@@ -38,3 +38,5 @@
 - `cargo test --workspace` — tests moteur
 - `pnpm build` — vérif TypeScript + build interface
 - `pnpm app:build` — installeur NSIS
+- `pnpm release -Version X.Y.Z [-Publish]` — release signée + GitHub Release (voir `docs/RELEASE.md`). La clé `%USERPROFILE%.taurinvix.key` ne doit jamais entrer dans le dépôt. La version vient de `Cargo.toml` (`[workspace.package]`), pas de `tauri.conf.json`.
+- Journal de l'app : `%LOCALAPPDATA%io.github.luz0gg.convixogsnvix.log` (premier endroit où regarder en cas de bug).

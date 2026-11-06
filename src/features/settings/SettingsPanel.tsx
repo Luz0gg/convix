@@ -1,4 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
+import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useEffect, useState, type ReactNode } from "react";
 import { useI18n } from "../../i18n";
 import { api, formatSize } from "../../lib/api";
@@ -87,11 +88,28 @@ function ModulesList() {
   );
 }
 
-export function SettingsPanel({ settings, onChange, onClose }: { settings: Settings; onChange: (s: Settings) => void; onClose: () => void }) {
+type CheckResult = "found" | "upToDate" | "error";
+
+export function SettingsPanel({
+  settings,
+  onChange,
+  onClose,
+  onCheckUpdate,
+}: {
+  settings: Settings;
+  onChange: (s: Settings) => void;
+  onClose: () => void;
+  onCheckUpdate: () => Promise<CheckResult>;
+}) {
   const { t } = useI18n();
   const [version, setVersion] = useState("");
+  const [logPath, setLogPath] = useState<string | null>(null);
+  const [checking, setChecking] = useState<CheckResult | "checking" | null>(null);
   useEffect(() => {
-    api.appInfo().then((i) => setVersion(i.version));
+    api.appInfo().then((i) => {
+      setVersion(i.version);
+      setLogPath(i.logPath);
+    });
   }, []);
 
   const lastFolder = settings.output.mode === "fixedFolder" ? settings.output.path : "";
@@ -173,7 +191,51 @@ export function SettingsPanel({ settings, onChange, onClose }: { settings: Setti
           <ModulesList />
         </Section>
 
-        <p className="pt-4 text-xs text-muted">Convix · {t("settings.about", { version })}</p>
+        <Section title={t("settings.updates")}>
+          <label className="flex cursor-pointer items-center justify-between gap-4 text-sm">
+            {t("settings.updates.auto")}
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-[var(--color-accent)]"
+              checked={settings.checkUpdates}
+              onChange={(e) => onChange({ ...settings, checkUpdates: e.target.checked })}
+            />
+          </label>
+          <div className="flex items-center gap-3">
+            <button
+              disabled={checking === "checking"}
+              onClick={async () => {
+                setChecking("checking");
+                setChecking(await onCheckUpdate());
+              }}
+              className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent disabled:opacity-50"
+            >
+              {t("settings.updates.check")}
+            </button>
+            {checking && <span className="text-xs text-muted">{t(`settings.updates.${checking}`)}</span>}
+          </div>
+        </Section>
+
+        <Section title={t("settings.aboutTitle")}>
+          <p className="text-sm">
+            <span className="font-semibold">Convix</span> <span className="text-muted">{t("settings.about", { version })}</span>
+          </p>
+          <p className="text-xs text-muted">{t("settings.about.text")}</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => openUrl("https://github.com/Luz0gg/convix")} className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent">
+              GitHub
+            </button>
+            <button onClick={() => openUrl("https://github.com/Luz0gg/convix/issues/new")} className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent">
+              {t("settings.about.bug")}
+            </button>
+            {logPath && (
+              <button onClick={() => revealItemInDir(logPath)} className="rounded-md border border-border px-2 py-1 text-xs hover:border-accent">
+                {t("settings.about.log")}
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-muted">{t("settings.about.credits")}</p>
+        </Section>
       </aside>
     </div>
   );

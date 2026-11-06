@@ -4,6 +4,7 @@
 mod cli;
 mod commands;
 mod jobs;
+mod log;
 mod options;
 mod quiet;
 mod settings;
@@ -95,8 +96,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
+            log::init(&app.path().app_local_data_dir()?.join("logs"));
+            log::info(&format!("Convix {} started{}", env!("CARGO_PKG_VERSION"), if std::env::args().len() > 1 { " (Explorer menu)" } else { "" }));
             let settings_path = config_dir.join("settings.json");
             let settings = settings::load(&settings_path);
             let registry = build_registry();
@@ -152,6 +157,7 @@ pub fn run() {
             commands::run_batch,
             commands::cancel_batch,
             commands::remember_options,
+            commands::log_ui,
             commands::module_list,
             commands::install_module,
             commands::remove_module,

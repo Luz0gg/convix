@@ -70,7 +70,7 @@ const moduleList = () => [{
   status: ffmpegInstalled ? { state: "installed", version: "9.0.2", path: "C:\\ffmpeg.exe" } : { state: "notInstalled" },
 }];
 
-let settings: Settings ={ output: { mode: "nextToSource" }, language: "fr", theme: "system", shellIntegration: true, quietContextMenu: true };
+let settings: Settings ={ output: { mode: "nextToSource" }, language: "fr", theme: "system", shellIntegration: true, quietContextMenu: true, checkUpdates: true };
 
 /** A colored gradient as a fake thumbnail. */
 async function fakeThumbnail(path: string): Promise<ArrayBuffer> {
@@ -95,7 +95,13 @@ async function invoke(cmd: string, args: Record<string, any> = {}): Promise<unkn
     case "plugin:event|unlisten":
       return null;
     case "app_info":
-      return { version: "0.1.0-dev" };
+      return { version: "0.1.0-dev", logPath: "C:\Users\moi\AppData\Local\io.github.luz0gg.convix\logs\convix.log" };
+    case "plugin:updater|check":
+      // Open http://localhost:1420/?update to preview the update banner.
+      return location.search.includes("update") ? { rid: 1, currentVersion: "0.1.0", version: "1.0.0", date: null, body: "", rawJson: {} } : null;
+    case "log_ui":
+      console.warn("[log_ui]", args.message);
+      return null;
     case "take_launch_request":
       return null;
     case "get_settings":

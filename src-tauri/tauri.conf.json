@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Convix",
-  "version": "0.1.0",
   "identifier": "io.github.luz0gg.convix",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -22,12 +21,15 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' blob: data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost"
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "targets": [
+      "nsis"
+    ],
     "publisher": "Luz0gg",
     "license": "MIT",
     "category": "Utility",
@@ -42,8 +44,22 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["French", "English"],
+        "languages": [
+          "French",
+          "English"
+        ],
         "installerHooks": "./windows/hooks.nsh"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUyQzdCMTRCNTVDQTU1MUIKUldRYlZjcFZTN0hINGgzYXFVZlhuelZHSXJwWEZmVVd1SHlqQlBwS3Y0aDFmajUxeEF0TFhmaFAK",
+      "endpoints": [
+        "https://github.com/Luz0gg/convix/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

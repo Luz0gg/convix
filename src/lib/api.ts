@@ -1,9 +1,13 @@
 // Single entry point to the Rust side. Components never call `invoke` directly.
 import { invoke } from "@tauri-apps/api/core";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 import type { FileInfo, JobEvent, LaunchRequest, ModuleInfo, OptionValues, Settings } from "./types";
 
 export const api = {
-  appInfo: () => invoke<{ version: string }>("app_info"),
+  appInfo: () => invoke<{ version: string; logPath: string | null }>("app_info"),
+  logUi: (level: "error" | "info", message: string) => invoke<void>("log_ui", { level, message }),
+  /** Signed update from GitHub Releases, or null when up to date. */
+  checkUpdate: (): Promise<Update | null> => check(),
   takeLaunchRequest: () => invoke<LaunchRequest | null>("take_launch_request"),
   getSettings: () => invoke<Settings>("get_settings"),
   updateSettings: (settings: Settings) => invoke<Settings>("update_settings", { settings }),

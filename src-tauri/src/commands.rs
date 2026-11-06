@@ -20,12 +20,15 @@ use tauri::{AppHandle, Emitter, State};
 #[serde(rename_all = "camelCase")]
 pub struct AppInfo {
     version: &'static str,
+    /// Local error log, for bug reports.
+    log_path: Option<PathBuf>,
 }
 
 #[tauri::command]
 pub fn app_info() -> AppInfo {
     AppInfo {
         version: env!("CARGO_PKG_VERSION"),
+        log_path: crate::log::path(),
     }
 }
 
@@ -302,9 +305,13 @@ pub async fn install_module(
     .await;
     state.batches.lock().unwrap().remove(&install_key(&id));
 
-    result
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())?.map_err(|e| {
+        if !matches!(e, convix_modules::ModuleError::Cancelled) {
+            crate::log::error(&format!("module {id} | {e}"));
+        }
+        e.to_string()
+    })?;
+    crate::log::info(&format!("module {id} installed"));
     crate::refresh_shell_menu(&state); // audio entries appear in the Explorer menu
     Ok(state.modules.list())
 }
@@ -317,4 +324,10 @@ pub fn remove_module(state: State<'_, AppState>, id: String) -> Result<Vec<Modul
     state.modules.remove(&id).map_err(|e| e.to_string())?;
     crate::refresh_shell_menu(&state);
     Ok(state.modules.list())
+}
+
+/// Errors caught in the interface end up in the same local log.
+#[tauri::command]
+pub fn log_ui(level: String, message: String) {
+    crate::log::write(if level == "error" { "UI" } else { "INFO" }, &message);
 }

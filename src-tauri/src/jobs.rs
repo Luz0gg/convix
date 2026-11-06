@@ -185,6 +185,9 @@ impl Runner {
                 ..base
             },
         };
+        if ev.status == JobStatus::Failed {
+            crate::log::error(&format!("{} | {} | {}", req.operation_id, input.display(), ev.error.as_deref().unwrap_or("?")));
+        }
         emit(ev.clone());
         ev
     }

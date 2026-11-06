@@ -12,6 +12,8 @@ import { FileCard } from "./features/files/FileCard";
 import { SettingsPanel } from "./features/settings/SettingsPanel";
 import { ModulePrompt } from "./features/modules/ModulePrompt";
 import { useModules } from "./features/modules/modules";
+import { UpdateBanner } from "./features/updates/UpdateBanner";
+import type { Update } from "@tauri-apps/plugin-updater";
 
 type Toast = { kind: "ok" | "error"; text: string };
 /** An action waiting for a module download (FFmpeg…). */
@@ -33,6 +35,7 @@ export default function App() {
   const [pendingRun, setPendingRun] = useState<PendingRun | null>(null);
   const [combineJob, setCombineJob] = useState<JobEvent | undefined>();
   const combineBatches = useRef(new Set<string>());
+  const [update, setUpdate] = useState<Update | null>(null);
   const { modules, missingFor } = useModules();
   const settingsRef = useRef<Settings | null>(null);
   settingsRef.current = settings;
@@ -44,6 +47,23 @@ export default function App() {
       setLang(s.language);
     });
   }, [setLang]);
+
+  // ---- new version? (a few seconds after start, never blocking) ----
+  const checkUpdate = useCallback(async () => {
+    try {
+      const found = await api.checkUpdate();
+      setUpdate(found);
+      return found ? "found" : "upToDate";
+    } catch (e) {
+      api.logUi("error", `update check: ${e}`).catch(() => {});
+      return "error";
+    }
+  }, []);
+  useEffect(() => {
+    if (!settings?.checkUpdates) return;
+    const id = setTimeout(checkUpdate, 4000);
+    return () => clearTimeout(id);
+  }, [settings?.checkUpdates, checkUpdate]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -182,11 +202,14 @@ export default function App() {
   return (
     <div className="flex h-full flex-col gap-4 p-5">
       <header className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold">
-            Conv<span className="text-accent">ix</span>
-          </h1>
-          <p className="text-sm text-muted">{t("app.tagline")}</p>
+        <div className="flex items-center gap-3">
+          <img src="/icon.svg" alt="" className="h-10 w-10" draggable={false} />
+          <div>
+            <h1 className="text-xl font-bold">
+              Conv<span className="text-accent">ix</span>
+            </h1>
+            <p className="text-sm text-muted">{t("app.tagline")}</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {running.length > 0 && (
@@ -217,6 +240,8 @@ export default function App() {
         </div>
       </header>
 
+      {update && <UpdateBanner update={update} onDismiss={() => setUpdate(null)} />}
+
       <DropZone hovering={hovering} compact={files.length > 0} />
 
       {files.length > 0 && (
@@ -244,7 +269,7 @@ export default function App() {
         </section>
       )}
 
-      {showSettings && settings && <SettingsPanel settings={settings} onChange={changeSettings} onClose={() => setShowSettings(false)} />}
+      {showSettings && settings && <SettingsPanel settings={settings} onChange={changeSettings} onClose={() => setShowSettings(false)} onCheckUpdate={checkUpdate} />}
 
       {pendingRun && modules.find((m) => m.id === pendingRun.moduleId) && (
         <ModulePrompt

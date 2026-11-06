@@ -104,12 +104,13 @@ Outils lourds non inclus dans l'installeur, téléchargés au premier besoin :
 ## Mises à jour de l'application
 
 - Plugin officiel `tauri-plugin-updater` + **GitHub Releases** (dépôt public) : l'app lit `latest.json` de la dernière release, télécharge l'installeur, vérifie sa **signature** (clé privée gardée hors du dépôt), installe.
-- Pas de CI : on construit et publie en local avec un script (`pnpm app:build` puis `gh release create`). Voir `docs/RELEASE.md` *(Phase 4)*.
+- Pas de CI : on construit et publie en local avec `pnpm release -Version X.Y.Z -Publish` (`scripts/release.ps1`). Voir `docs/RELEASE.md`.
+- Plugin en mode TLS de Windows (`native-tls`), installation « passive » (barre de progression NSIS, pas de questions).
 
 ## Performance
 
 - Conversions sur des threads dédiés (`spawn_blocking`, puis une file de jobs avec parallélisme = nb de cœurs).
-- Profil release : LTO, `codegen-units = 1`, `strip`, `panic = abort` → binaire petit et rapide.
+- Profil release : LTO, `codegen-units = 1`, `strip` → binaire petit et rapide. `panic` reste en « unwind » pour qu'un fichier qui plante n'arrête pas tout le lot.
 - Dépendances compilées optimisées même en dev (les codecs non optimisés sont 10-50× plus lents).
 - Interface : React, pas de bibliothèque UI lourde, Tailwind (CSS généré minimal).
 
@@ -117,4 +118,5 @@ Outils lourds non inclus dans l'installeur, téléchargés au premier besoin :
 
 - L'interface n'a accès qu'aux commandes déclarées (capabilities Tauri), pas au système de fichiers en direct.
 - Modules et mises à jour vérifiés cryptographiquement.
-- *(Phase 4)* Content-Security-Policy stricte dans `tauri.conf.json`.
+- Content-Security-Policy stricte dans `tauri.conf.json` : uniquement nos fichiers, l'IPC Tauri et les images `blob:`/`data:` (miniatures). Toute violation est écrite dans le journal.
+- Journal local `logs/convix.log` (jamais envoyé) : `src-tauri/src/log.rs`.

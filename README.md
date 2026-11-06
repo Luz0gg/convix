@@ -9,7 +9,13 @@
 - 🔒 **100 % local** : aucun fichier n'est envoyé sur Internet
 - 🧩 **Modules** téléchargés à la demande (FFmpeg, plus tard upscale IA)
 
-**Statut :** images complètes (Phase 1) ; audio via FFmpeg téléchargé au premier besoin (Phase 2) ; PDF complet (Phase 3). Voir la [roadmap](docs/ROADMAP.md).
+**Statut :** images complètes (Phase 1) ; audio via FFmpeg téléchargé au premier besoin (Phase 2) ; PDF complet (Phase 3) ; mises à jour automatiques signées (Phase 4). Prêt pour la v1.0. Voir la [roadmap](docs/ROADMAP.md).
+
+## Installer
+
+1. Télécharge `Convix_…_x64-setup.exe` dans les [Releases](https://github.com/Luz0gg/convix/releases/latest).
+2. Windows peut afficher « Windows a protégé votre ordinateur » (l'app n'a pas de certificat payant) : clique sur « Informations complémentaires », puis « Exécuter quand même ».
+3. C'est tout : pas besoin de droits administrateur. Convix se met ensuite à jour tout seul.
 
 ## Documentation
 

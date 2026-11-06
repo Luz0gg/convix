@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Convix icon: two arrows chasing each other = "convert". Source for `pnpm tauri icon assets/app-icon.svg`. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8aa2ff"/>
+      <stop offset="1" stop-color="#3a49d1"/>
+    </linearGradient>
+  </defs>
+  <rect x="32" y="32" width="960" height="960" rx="220" fill="url(#bg)"/>
+  <g fill="none" stroke="#ffffff" stroke-width="100" stroke-linecap="round">
+    <path d="M 267.7 423.1 A 260 260 0 0 1 720 372"/>
+    <path d="M 756.3 600.9 A 260 260 0 0 1 304 652"/>
+  </g>
+  <g fill="#ffffff" stroke="#ffffff" stroke-width="24" stroke-linejoin="round">
+    <polygon points="790,460 830,318 650,410"/>
+    <polygon points="234,564 194,706 374,614"/>
+  </g>
+</svg>
