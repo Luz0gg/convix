@@ -742,7 +742,7 @@ checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 
 [[package]]
 name = "convix"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "convix-audio",
  "convix-core",
@@ -765,14 +765,14 @@ dependencies = [
 
 [[package]]
 name = "convix-audio"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "convix-core",
 ]
 
 [[package]]
 name = "convix-core"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "infer 0.19.0",
  "serde",
@@ -782,7 +782,7 @@ dependencies = [
 
 [[package]]
 name = "convix-image"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "color_quant",
  "convix-core",
@@ -799,7 +799,7 @@ dependencies = [
 
 [[package]]
 name = "convix-modules"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -811,7 +811,7 @@ dependencies = [
 
 [[package]]
 name = "convix-pdf"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "convix-core",
  "convix-image",
