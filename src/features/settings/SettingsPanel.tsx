@@ -98,6 +98,17 @@ export function SettingsPanel({ settings, onChange, onClose }: { settings: Setti
             />
           </label>
           <p className="text-xs text-muted">{t("settings.shell.hint")}</p>
+          <label className={`flex cursor-pointer items-center justify-between gap-4 pt-2 text-sm ${settings.shellIntegration ? "" : "opacity-50"}`}>
+            {t("settings.quiet")}
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-[var(--color-accent)]"
+              disabled={!settings.shellIntegration}
+              checked={settings.quietContextMenu}
+              onChange={(e) => onChange({ ...settings, quietContextMenu: e.target.checked })}
+            />
+          </label>
+          <p className="text-xs text-muted">{t("settings.quiet.hint")}</p>
         </Section>
 
         <p className="pt-4 text-xs text-muted">ConvertIO · {t("settings.about", { version })}</p>

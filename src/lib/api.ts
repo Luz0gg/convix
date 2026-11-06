@@ -17,6 +17,8 @@ export const api = {
     outputPath?: string | null;
   }) => invoke<JobEvent[]>("run_batch", args),
   cancelBatch: (batchId: string) => invoke<void>("cancel_batch", { batchId }),
+  thumbnail: (path: string) => invoke<ArrayBuffer>("thumbnail", { path }),
+  rememberOptions: (operationId: string, options: OptionValues) => invoke<void>("remember_options", { operationId, options }),
   moduleStatus: (id: string) => invoke<ModuleStatus>("module_status", { id }),
 };
 
@@ -64,4 +66,6 @@ export function rememberOptions(opId: string, values: OptionValues) {
   } catch {
     /* ignore */
   }
+  // Also on the Rust side: right-click conversions run without the window.
+  api.rememberOptions(opId, values).catch(() => {});
 }

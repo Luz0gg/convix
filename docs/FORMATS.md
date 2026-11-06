@@ -8,7 +8,9 @@ Source de vérité : le code (`crates/convertio-*/src/lib.rs`, fonction `operati
 |---|---|---|---|---|---|---|---|---|---|
 | PNG, JPEG, WebP, GIF, BMP, TIFF, ICO, TGA | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
 | SVG (rendu vectoriel) | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
-| AVIF, HEIC | lecture pas encore possible (décodeur natif à intégrer) |
+| HEIC (iPhone), AVIF | ✔ | ✔ | ✔ | ✔* | ✔ | ✔ | ✔ | ✔ | ✔ |
+
+\* Lecture via les codecs de Windows. Si Windows ne les a pas, ConvertIO indique quoi installer (gratuit, Microsoft Store) : « Extensions d'image HEIF » + « Extensions vidéo HEVC » pour le HEIC, « Extension vidéo AV1 » pour l'AVIF.
 
 ### Options par format de sortie
 
@@ -34,7 +36,7 @@ Source de vérité : le code (`crates/convertio-*/src/lib.rs`, fonction `operati
 - **Orientation EXIF appliquée** (photos de téléphone jamais tournées).
 - **Profil couleur conservé** en PNG et JPEG (Display P3, Adobe RGB…).
 - Métadonnées EXIF (GPS, appareil) **retirées** du résultat.
-- GIF/WebP animés : seule la première image est convertie (pour l'instant).
+- GIF, WebP et APNG animés → GIF ou WebP : **toutes les images et leurs durées sont gardées**. Vers un format fixe (PNG, JPEG…) : première image.
 
 ## Audio (module `ffmpeg`) — ⬜ Phase 2
 

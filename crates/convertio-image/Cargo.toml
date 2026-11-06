@@ -25,3 +25,13 @@ resvg = "0.49"
 # Palette reduction for "smaller PNG" (MIT, unlike libimagequant which is GPL)
 color_quant = "1"
 rayon = "1"
+
+[target.'cfg(windows)'.dependencies]
+# HEIC / AVIF decoding through the Windows codecs (WIC). Same version Tauri already uses.
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Imaging",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant",
+] }

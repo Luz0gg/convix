@@ -4,6 +4,8 @@
 mod cli;
 mod commands;
 mod jobs;
+mod options;
+mod quiet;
 mod settings;
 mod shell_integration;
 
@@ -15,18 +17,22 @@ use std::{
     path::PathBuf,
     sync::{Arc, Mutex, RwLock},
 };
-use tauri::{Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 pub struct AppState {
     pub registry: Registry,
     pub modules: Arc<ModuleManager>,
     pub settings: RwLock<Settings>,
     pub settings_path: PathBuf,
+    /// Last options used per operation (shared by the UI and quiet conversions).
+    pub options_path: PathBuf,
     /// Running batches, by id, so the UI can cancel them.
     pub batches: Mutex<HashMap<String, CancelToken>>,
     /// Files/operation passed on the command line at startup (Explorer context menu),
     /// picked up once by the UI when it is ready.
     pub pending_launch: Mutex<Option<cli::LaunchRequest>>,
+    /// Background conversions started from the Explorer menu (no window).
+    pub quiet: Mutex<quiet::QuietState>,
 }
 
 fn build_registry() -> Registry {
@@ -38,23 +44,44 @@ fn build_registry() -> Registry {
     r
 }
 
+fn show_main_window(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
+
+/// Launches forwarded while we are still starting up (state not managed yet).
+/// Selecting many files in Explorer starts them all at once, so this does happen.
+static EARLY_LAUNCHES: Mutex<Vec<(Vec<String>, String)>> = Mutex::new(Vec::new());
+
+/// A second launch (e.g. context menu on 10 files) lands here instead of opening a new app.
+fn on_second_instance(app: &AppHandle, argv: Vec<String>, cwd: String) {
+    let Some(state) = app.try_state::<AppState>() else {
+        EARLY_LAUNCHES.lock().unwrap().push((argv, cwd));
+        return;
+    };
+    if let Some(req) = cli::parse(argv.into_iter().skip(1), Some(cwd.as_ref())) {
+        if quiet::enqueue(&state, req.clone()) {
+            return; // handled in the background, window stays hidden
+        }
+        let _ = app.emit("launch-request", req);
+    }
+    quiet::keep_open(&state);
+    show_main_window(app);
+}
+
 pub fn run() {
     tauri::Builder::default()
-        // Must be first: a second launch (e.g. context menu on 10 files) forwards
-        // its arguments to the running window instead of opening new ones.
-        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
-            if let Some(req) = cli::parse(argv.into_iter().skip(1), Some(cwd.as_ref())) {
-                let _ = app.emit("launch-request", req);
-            }
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.unminimize();
-                let _ = w.set_focus();
-            }
-        }))
+        // Must be first.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| on_second_instance(app, argv, cwd)))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            let settings_path = app.path().app_config_dir()?.join("settings.json");
+            let config_dir = app.path().app_config_dir()?;
+            let settings_path = config_dir.join("settings.json");
             let settings = settings::load(&settings_path);
             let registry = build_registry();
 
@@ -65,14 +92,39 @@ pub fn run() {
                 std::thread::spawn(move || shell_integration::install(&registry, &lang));
             }
 
+            // Right-click › "Convertir en PNG": convert in the background, no window.
+            let launch = cli::parse(std::env::args().skip(1), None);
+            let is_quiet = settings.quiet_context_menu && launch.as_ref().is_some_and(|r| r.operation.is_some());
+            let mut quiet_state = quiet::QuietState { active: is_quiet, ..Default::default() };
+            let pending_launch = if is_quiet {
+                quiet_state.pending.extend(launch);
+                None
+            } else {
+                launch
+            };
+
             app.manage(AppState {
                 registry,
                 modules: Arc::new(ModuleManager::new(&app.path().app_local_data_dir()?)),
                 settings: RwLock::new(settings),
                 settings_path,
+                options_path: config_dir.join("options.json"),
                 batches: Mutex::new(HashMap::new()),
-                pending_launch: Mutex::new(cli::parse(std::env::args().skip(1), None)),
+                pending_launch: Mutex::new(pending_launch),
+                quiet: Mutex::new(quiet_state),
             });
+            let early = std::mem::take(&mut *EARLY_LAUNCHES.lock().unwrap());
+            for (argv, cwd) in early {
+                on_second_instance(app.handle(), argv, cwd);
+            }
+
+            // The window is created hidden (tauri.conf.json) so quiet mode never flashes it.
+            if is_quiet {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || quiet::run(handle));
+            } else {
+                show_main_window(app.handle());
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -81,8 +133,10 @@ pub fn run() {
             commands::get_settings,
             commands::update_settings,
             commands::inspect_files,
+            commands::thumbnail,
             commands::run_batch,
             commands::cancel_batch,
+            commands::remember_options,
             commands::module_status,
         ])
         .run(tauri::generate_context!())

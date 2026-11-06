@@ -35,6 +35,7 @@
   "opt.height": "Hauteur",
   "opt.renderWidth": "Largeur de rendu",
   "opt.keepRatio": "Garder les proportions",
+  "opt.keepAnimation": "Garder l'animation (si animée)",
   "opt.effort": "Effort",
   "opt.effortFast": "Rapide",
   "opt.effortBalanced": "Équilibré",
@@ -69,5 +70,7 @@
   "settings.theme.light": "Clair",
   "settings.shell": "Clic droit dans l'Explorateur",
   "settings.shell.hint": "Ajoute « ConvertIO › Convertir en… » au clic droit des images. Sous Windows 11 : « Afficher plus d'options ».",
+  "settings.quiet": "Convertir en arrière-plan",
+  "settings.quiet.hint": "Depuis le clic droit, convertit sans ouvrir la fenêtre et affiche une notification à la fin (avec les derniers réglages utilisés).",
   "settings.about": "Version {version}"
 }

@@ -29,6 +29,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
 # Phase 4: tauri-plugin-updater (needs a signing key + manifest URL first)
 
 [target.'cfg(windows)'.dependencies]

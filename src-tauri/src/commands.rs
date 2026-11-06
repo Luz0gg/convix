@@ -172,6 +172,28 @@ pub fn cancel_batch(state: State<'_, AppState>, batch_id: String) {
     }
 }
 
+/// Small preview image (raw JPEG/PNG bytes → ArrayBuffer in JS).
+/// Runs in a 3-thread pool so 200 dropped photos don't decode all at once.
+#[tauri::command]
+pub async fn thumbnail(path: PathBuf) -> Result<tauri::ipc::Response, String> {
+    static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
+    tauri::async_runtime::spawn_blocking(move || {
+        let pool = POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().num_threads(3).build().expect("thumbnail pool"));
+        pool.install(|| convertio_image::thumbnail(&path, 160))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map(tauri::ipc::Response::new)
+    .map_err(|e| e.to_string())
+}
+
+/// Remember the options used for an operation, so Explorer right-click conversions
+/// (which run without the window) use the same settings.
+#[tauri::command]
+pub fn remember_options(state: State<'_, AppState>, operation_id: String, options: OptionValues) -> Result<(), String> {
+    crate::options::remember(&state.options_path, &operation_id, options).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn module_status(state: State<'_, AppState>, id: String) -> ModuleStatus {
     state.modules.status(&id, None)

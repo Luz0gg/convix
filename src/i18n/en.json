@@ -35,6 +35,7 @@
   "opt.height": "Height",
   "opt.renderWidth": "Render width",
   "opt.keepRatio": "Keep aspect ratio",
+  "opt.keepAnimation": "Keep animation (if animated)",
   "opt.effort": "Effort",
   "opt.effortFast": "Fast",
   "opt.effortBalanced": "Balanced",
@@ -69,5 +70,7 @@
   "settings.theme.light": "Light",
   "settings.shell": "Explorer right-click menu",
   "settings.shell.hint": "Adds “ConvertIO › Convert to…” to the right-click menu of images. On Windows 11: “Show more options”.",
+  "settings.quiet": "Convert in the background",
+  "settings.quiet.hint": "From the right-click menu, converts without opening the window and shows a notification when done (using your last settings).",
   "settings.about": "Version {version}"
 }

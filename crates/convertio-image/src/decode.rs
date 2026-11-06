@@ -18,6 +18,8 @@ pub struct Decoded {
 pub fn decode(path: &Path, format: Format, svg_width: Option<u32>) -> Result<Decoded> {
     match format {
         Format::Svg => Ok(Decoded { image: DynamicImage::ImageRgba8(render_svg(path, svg_width)?), icc: None }),
+        #[cfg(windows)]
+        Format::Heic | Format::Avif => Ok(Decoded { image: crate::wic::decode(path, format)?, icc: None }),
         _ => decode_raster(path),
     }
 }

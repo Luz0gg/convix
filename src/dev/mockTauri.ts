@@ -34,7 +34,22 @@ function opsFor(format: string): OperationDescriptor[] {
   return ops;
 }
 
-let settings: Settings = { output: { mode: "nextToSource" }, language: "fr", theme: "system", shellIntegration: true };
+let settings: Settings = { output: { mode: "nextToSource" }, language: "fr", theme: "system", shellIntegration: true, quietContextMenu: true };
+
+/** A colored gradient as a fake thumbnail. */
+async function fakeThumbnail(path: string): Promise<ArrayBuffer> {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d")!;
+  const hue = [...path].reduce((h, ch) => h + ch.charCodeAt(0), 0) % 360;
+  const grad = g.createLinearGradient(0, 0, 64, 64);
+  grad.addColorStop(0, `hsl(${hue} 70% 55%)`);
+  grad.addColorStop(1, `hsl(${(hue + 60) % 360} 70% 35%)`);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/png"));
+  return blob.arrayBuffer();
+}
 
 async function invoke(cmd: string, args: Record<string, any> = {}): Promise<unknown> {
   switch (cmd) {
@@ -51,6 +66,10 @@ async function invoke(cmd: string, args: Record<string, any> = {}): Promise<unkn
       return settings;
     case "update_settings":
       return (settings = args.settings);
+    case "thumbnail":
+      return fakeThumbnail(args.path);
+    case "remember_options":
+      return null;
     case "inspect_files":
       return (args.paths as string[]).map((path): FileInfo => {
         const name = path.split(/[\\/]/).pop()!;

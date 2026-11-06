@@ -63,6 +63,7 @@ export interface Settings {
   language: "fr" | "en";
   theme: "system" | "dark" | "light";
   shellIntegration: boolean;
+  quietContextMenu: boolean;
 }
 
 export type JobStatus = "running" | "done" | "failed" | "cancelled";

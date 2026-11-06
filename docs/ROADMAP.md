@@ -22,12 +22,13 @@ Chaque phase se termine par une version utilisable. ✅ fait · 🔜 en cours ·
 - ✅ Réglages persistants : dossier de sortie (à côté / fixe / demander), langue, thème
 - ✅ **Clic droit Explorateur** (HKCU, cascade « ConvertIO › … ») + exécution directe de `--op` + nettoyage à la désinstallation
 - ✅ Glisser un dossier entier (récursif, 5000 fichiers max)
-- ⬜ Lecture AVIF et HEIC (photos iPhone) — décodeurs natifs à intégrer
-- ⬜ GIF / WebP animés (aujourd'hui : première image seulement)
-- ⬜ Aperçu miniature des images dans les cartes
+- 🔜 Lecture HEIC (photos iPhone) et AVIF via les codecs Windows (WIC) — codé, **à tester sur une vraie photo iPhone** (impossible depuis la session de Claude)
+- ✅ GIF / WebP / APNG animés : animation conservée vers GIF et WebP (option « Garder l'animation »)
+- ✅ Miniatures des images dans les cartes (générées par le moteur, chargées seulement quand visibles)
+- ✅ Clic droit **en arrière-plan** : pas de fenêtre, tous les fichiers sélectionnés regroupés, une notification à la fin, mêmes réglages que la dernière fois
 - ⬜ Progression fine dans un fichier (utile pour les très grosses images / AVIF)
 - ⬜ Conversion des profils couleur vers sRGB pour WebP/AVIF (aujourd'hui le profil est perdu)
-- ⬜ Mode « silencieux » du clic droit (convertir sans afficher la fenêtre, juste une notification)
+- ⬜ Redimensionner un GIF animé (aujourd'hui : première image)
 
 ## Phase 2 — Modules & audio ⬜
 - ⬜ Gestionnaire de modules : manifeste, téléchargement, SHA-256, extraction, mise à jour

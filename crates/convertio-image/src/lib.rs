@@ -6,9 +6,12 @@
 //! - `image.compress.smaller`   PNG (palette), JPEG, WebP (lossy re-encode)
 //! - `image.resize`
 
+mod anim;
 mod decode;
 mod encode;
 mod transform;
+#[cfg(windows)]
+mod wic;
 
 use convertio_core::{
     Converter, Error, Format, JobContext, OperationCategory, OperationDescriptor, OptionSpec,
@@ -21,7 +24,7 @@ pub use encode::is_opaque;
 
 pub struct ImageConverter;
 
-/// Formats we can read. (AVIF and HEIC reading need native decoders: later.)
+/// Formats we can read in pure Rust.
 const READABLE: &[Format] = &[
     Format::Png,
     Format::Jpeg,
@@ -35,7 +38,8 @@ const READABLE: &[Format] = &[
 ];
 
 pub fn can_read(f: Format) -> bool {
-    READABLE.contains(&f)
+    // HEIC / AVIF go through the Windows codecs (see wic.rs).
+    READABLE.contains(&f) || (cfg!(windows) && matches!(f, Format::Heic | Format::Avif))
 }
 
 // ---------- option specs ----------
@@ -126,6 +130,9 @@ impl Converter for ImageConverter {
                 if input == Format::Svg {
                     options.insert(0, svg_width());
                 }
+                if matches!(input, Format::Gif | Format::Webp) && matches!(to, Format::Gif | Format::Webp) {
+                    options.insert(0, OptionSpec::Toggle { id: "keepAnimation", label_key: "opt.keepAnimation", default: true });
+                }
                 OperationDescriptor::convert(self.id(), to).with_options(options)
             })
             .collect();
@@ -169,7 +176,8 @@ impl Converter for ImageConverter {
             ops.push(descriptor("image.compress.smaller", OperationCategory::Compress, input, "op.compressSmaller", "-min", options));
         }
 
-        if input != Format::Svg && input != Format::Ico {
+        // Resizing re-encodes to the source format, so it must be writable (not SVG/HEIC).
+        if WRITABLE.contains(&input) && input != Format::Ico {
             ops.push(descriptor(
                 "image.resize",
                 OperationCategory::Transform,
@@ -202,6 +210,8 @@ impl Converter for ImageConverter {
             let data = std::fs::read(input)?;
             ctx.cancel.check()?;
             encode::optimize_png(&data, level)?
+        } else if let Some(bytes) = self.convert_animation(action, input, in_fmt, opts)? {
+            bytes
         } else {
             let svg_w = if in_fmt == Format::Svg { num("width") } else { None };
             let decoded = decode::decode(input, in_fmt, svg_w)?;
@@ -239,6 +249,35 @@ impl Converter for ImageConverter {
         ctx.progress.progress(1.0);
         Ok(vec![ctx.output.clone()])
     }
+}
+
+impl ImageConverter {
+    /// GIF / animated WebP / APNG → GIF or animated WebP, keeping every frame.
+    /// `None` when the source is still or the target can't animate: use the normal path.
+    fn convert_animation(&self, action: &str, input: &std::path::Path, in_fmt: Format, opts: &OptionValues) -> Result<Option<Vec<u8>>> {
+        let Some(to) = action.strip_prefix("convert.").and_then(Format::from_extension) else { return Ok(None) };
+        if !matches!(to, Format::Gif | Format::Webp) || !opts.bool_or("keepAnimation", true) {
+            return Ok(None);
+        }
+        let Some(frames) = anim::decode_frames(input, in_fmt)? else { return Ok(None) };
+        let s = settings_from(opts, to);
+        Ok(Some(match to {
+            Format::Gif => anim::encode_gif(frames)?,
+            _ => anim::encode_webp(&frames, s.quality, s.lossless)?,
+        }))
+    }
+}
+
+/// Small preview (longest side `max` px) as JPEG, or PNG when transparent.
+pub fn thumbnail(path: &std::path::Path, max: u32) -> Result<Vec<u8>> {
+    let fmt = format::detect(path)?.filter(|f| can_read(*f)).ok_or(Error::UnsupportedFormat)?;
+    let decoded = decode::decode(path, fmt, (fmt == Format::Svg).then_some(max * 2))?;
+    let thumb = decoded.image.thumbnail(max, max);
+    let mut s = EncodeSettings::for_format(Format::Jpeg);
+    s.quality = 80.0;
+    s.png_optimize = None;
+    let to = if is_opaque(&thumb) { Format::Jpeg } else { Format::Png };
+    encode::encode(&thumb, None, to, &s)
 }
 
 #[cfg(test)]
@@ -345,6 +384,61 @@ mod tests {
             let out = run(&r, &src, &op, OptionValues::new()).unwrap();
             assert_eq!(image::image_dimensions(&out).unwrap(), (64, 48), "{id}");
         }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// AVIF → PNG through the Windows codec. Skipped when the AV1 extension isn't installed.
+    #[cfg(windows)]
+    #[test]
+    fn avif_reads_through_windows_codecs() {
+        let dir = temp_dir("avif");
+        let src = sample_png(&dir);
+        let r = registry();
+        let to_avif = r.describe(Format::Png, "image.convert.avif").unwrap();
+        let avif = run(&r, &src, &to_avif, OptionValues::new()).unwrap();
+        let back = r.describe(Format::Avif, "image.convert.png").unwrap();
+        match run(&r, &avif, &back, OptionValues::new()) {
+            Ok(png) => assert_eq!(image::image_dimensions(&png).unwrap(), (64, 48)),
+            Err(Error::Failed(msg)) if msg.contains("Microsoft Store") => eprintln!("skipped: {msg}"),
+            Err(e) => panic!("{e}"),
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn animated_gif_stays_animated_through_webp_and_back() {
+        use image::{AnimationDecoder, Delay, Frame, codecs::gif::GifEncoder};
+        let dir = temp_dir("anim");
+        let src = dir.join("loop.gif");
+        {
+            let mut enc = GifEncoder::new(std::fs::File::create(&src).unwrap());
+            let frames = (0..3u8).map(|i| Frame::from_parts(RgbaImage::from_pixel(20, 10, Rgba([i * 80, 0, 0, 255])), 0, 0, Delay::from_numer_denom_ms(100, 1)));
+            enc.encode_frames(frames).unwrap();
+        }
+        let r = registry();
+        let to_webp = r.describe(Format::Gif, "image.convert.webp").unwrap();
+        let webp = run(&r, &src, &to_webp, OptionValues::new()).unwrap();
+        let d = image::codecs::webp::WebPDecoder::new(std::io::BufReader::new(std::fs::File::open(&webp).unwrap())).unwrap();
+        assert!(d.has_animation(), "WebP lost its animation");
+
+        let to_gif = r.describe(Format::Webp, "image.convert.gif").unwrap();
+        let gif = run(&r, &webp, &to_gif, OptionValues::new()).unwrap();
+        let frames = image::codecs::gif::GifDecoder::new(std::io::BufReader::new(std::fs::File::open(&gif).unwrap()))
+            .unwrap()
+            .into_frames()
+            .collect_frames()
+            .unwrap();
+        assert_eq!(frames.len(), 3);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn thumbnail_is_small() {
+        let dir = temp_dir("thumb");
+        let src = sample_png(&dir);
+        let bytes = thumbnail(&src, 32).unwrap();
+        let img = image::load_from_memory(&bytes).unwrap();
+        assert_eq!((img.width(), img.height()), (32, 24));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

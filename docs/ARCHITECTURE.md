@@ -94,6 +94,7 @@ Outils lourds non inclus dans l'installeur, téléchargés au premier besoin :
 - **Instance unique** : si on lance l'action sur 20 fichiers, Windows démarre 20 processus ; le plugin `single-instance` les redirige tous vers la fenêtre déjà ouverte, qui les traite en lot.
 - Sous Windows 11, ce menu « classique » apparaît dans « Afficher plus d'options ». Une entrée directement dans le nouveau menu demande un composant COM + un package MSIX « sparse » : phase ultérieure.
 - Activable/désactivable dans les réglages ; nettoyé par le désinstalleur.
+- **Mode arrière-plan** (`src-tauri/src/quiet.rs`, activé par défaut) : la fenêtre est créée cachée ; lancé avec `--op`, ConvertIO convertit sans l'afficher, regroupe les fichiers transmis par les autres lancements, utilise les dernières options choisies dans l'app (`options.json`), affiche une notification Windows puis se ferme 1,5 s après le dernier fichier. Les lancements reçus pendant le démarrage sont mis en file (`EARLY_LAUNCHES`) pour ne rien perdre.
 
 ## Mises à jour de l'application
 

@@ -4,6 +4,7 @@ import type { FileInfo, JobEvent, OperationDescriptor, OptionValues } from "../.
 import { OptionsPanel } from "../options/OptionsPanel";
 import { JobStatusLine } from "./JobStatusLine";
 import { OpGroups } from "./OpGroups";
+import { Thumbnail } from "./Thumbnail";
 
 export function FileCard({
   file,
@@ -26,7 +27,7 @@ export function FileCard({
   return (
     <article className="rounded-xl border border-border bg-surface p-4">
       <header className="mb-3 flex items-center gap-3">
-        <span className="rounded-md bg-surface-2 px-2 py-1 text-xs font-bold tracking-wide text-accent">{file.formatLabel ?? "?"}</span>
+        <Thumbnail file={file} />
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium" title={file.path}>{file.name}</p>
           <p className="text-xs text-muted">

@@ -16,6 +16,8 @@ pub struct Settings {
     pub theme: String,
     /// Explorer context menu enabled.
     pub shell_integration: bool,
+    /// Context-menu conversions run in the background (notification only, no window).
+    pub quiet_context_menu: bool,
 }
 
 impl Default for Settings {
@@ -25,6 +27,7 @@ impl Default for Settings {
             language: "fr".into(),
             theme: "system".into(),
             shell_integration: true,
+            quiet_context_menu: true,
         }
     }
 }
