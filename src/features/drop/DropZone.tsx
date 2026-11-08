@@ -16,7 +16,7 @@ export function DropZone({
   return (
     <div
       className={[
-        "flex flex-col items-center justify-center rounded-2xl border-2 border-dashed text-center transition-colors",
+        "flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 text-center transition-colors",
         compact ? "py-5" : "flex-1 py-16",
         hovering ? "border-accent bg-accent-soft" : "border-border bg-surface",
       ].join(" ")}
@@ -35,6 +35,15 @@ export function DropZone({
       </svg>
       <p className="mt-3 text-lg font-semibold">{hovering ? t("drop.release") : t("drop.title")}</p>
       {!compact && <p className="mt-1 max-w-sm text-sm text-muted">{t("drop.subtitle")}</p>}
+      {!compact && !hovering && (
+        <ul className="mt-4 flex flex-wrap justify-center gap-1.5" aria-label={t("drop.families")}>
+          {["drop.family.image", "drop.family.audio", "drop.family.video", "drop.family.pdf"].map((key) => (
+            <li key={key} className="rounded-full border border-border bg-surface-2 px-2.5 py-0.5 text-xs text-muted">
+              {t(key)}
+            </li>
+          ))}
+        </ul>
+      )}
       {!hovering && (
         <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-sm">
           <button onClick={onPickFiles} className="rounded-lg border border-border bg-surface-2 px-3 py-1.5 hover:border-accent hover:text-accent">

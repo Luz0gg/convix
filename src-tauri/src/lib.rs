@@ -53,6 +53,7 @@ fn build_registry() -> Registry {
     let mut r = Registry::new();
     r.register(convix_image::ImageConverter);
     r.register(convix_audio::AudioConverter);
+    r.register(convix_audio::VideoConverter);
     r.register(convix_pdf::PdfConverter);
     // Only converters that fully work are registered: the UI never offers an action that can't run.
     r

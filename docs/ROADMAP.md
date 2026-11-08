@@ -91,3 +91,10 @@ Rapport complet : [`docs/AUDIT-2026-11.md`](AUDIT-2026-11.md).
 - Upscale d'images (module Real-ESRGAN), suppression de fond
 - Documents bureautiques (LibreOffice en module), OCR
 - macOS / Linux
+
+## Nouveautés (branche `feat/nuit-ameliorations`, à valider)
+- ✅ **Vidéo** (module FFmpeg) : en MP4, en WebM, en GIF (palette optimisée), « Compresser la vidéo » ; qualité et définition max (4K → 480p, petit côté) ; clic droit « Convertir en MP4 », « Compresser la vidéo », « Convertir en GIF »
+- ✅ **Images** : « côté max » sur les conversions (JPEG, PNG, WebP, AVIF), redimensionnement en pourcentage
+- ✅ **PDF** : faire pivoter des pages, supprimer des pages ; réordonner = « Extraire des pages » dans l'ordre voulu
+- ✅ **Historique** des 100 dernières conversions (Ctrl+H) avec « Afficher » ; bouton « Ouvrir le dossier » à la fin d'un lot
+- ✅ Petite passe visuelle : types de fichiers affichés sur l'écran d'accueil, survol des cartes

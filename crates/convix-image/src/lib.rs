@@ -63,7 +63,21 @@ fn svg_width() -> OptionSpec {
     OptionSpec::Number { id: "width", label_key: "opt.renderWidth", min: Some(1.0), max: Some(16384.0), default: None, unit: Some("px") }
 }
 
+/// Optional "longest side at most N px" on conversions that already have options
+/// (so that one-click conversions like → BMP stay one click).
+fn max_side() -> OptionSpec {
+    OptionSpec::Number { id: "maxSide", label_key: "opt.maxSide", min: Some(16.0), max: Some(65535.0), default: None, unit: Some("px") }
+}
+
 fn convert_options(to: Format) -> Vec<OptionSpec> {
+    let mut options = convert_options_base(to);
+    if !options.is_empty() && to != Format::Ico {
+        options.push(max_side());
+    }
+    options
+}
+
+fn convert_options_base(to: Format) -> Vec<OptionSpec> {
     match to {
         Format::Jpeg => vec![quality(90.0)],
         Format::Webp => vec![
@@ -191,6 +205,7 @@ impl Converter for ImageConverter {
                     OptionSpec::Number { id: "width", label_key: "opt.width", min: Some(1.0), max: Some(65535.0), default: None, unit: Some("px") },
                     OptionSpec::Number { id: "height", label_key: "opt.height", min: Some(1.0), max: Some(65535.0), default: None, unit: Some("px") },
                     OptionSpec::Toggle { id: "keepRatio", label_key: "opt.keepRatio", default: true },
+                    OptionSpec::Number { id: "percent", label_key: "opt.percent", min: Some(1.0), max: Some(1000.0), default: None, unit: Some("%") },
                 ],
             ));
         }
@@ -224,7 +239,14 @@ impl Converter for ImageConverter {
 
             if let Some(ext) = action.strip_prefix("convert.") {
                 let to = Format::from_extension(ext).filter(|f| WRITABLE.contains(f)).ok_or_else(unknown)?;
-                encode::encode(&decoded.image, icc, to, &settings_from(opts, to))?
+                // "Longest side at most N px": handy to convert a folder of photos for the web.
+                let image = match num("maxSide") {
+                    Some(max) if decoded.image.width().max(decoded.image.height()) > max => {
+                        std::borrow::Cow::Owned(transform::resize(&decoded.image, Some(max), Some(max), true)?)
+                    }
+                    _ => std::borrow::Cow::Borrowed(&decoded.image),
+                };
+                encode::encode(&image, icc, to, &settings_from(opts, to))?
             } else if action == "compress.smaller" {
                 let mut s = EncodeSettings::for_format(in_fmt);
                 match in_fmt {
@@ -240,7 +262,15 @@ impl Converter for ImageConverter {
                     _ => return Err(unknown()),
                 }
             } else if action == "resize" {
-                let resized = transform::resize(&decoded.image, num("width"), num("height"), opts.bool_or("keepRatio", true))?;
+                let (width, height) = match num("percent") {
+                    // A percentage wins over sizes: "50 %" of every photo of a batch.
+                    Some(p) => {
+                        let scale = |v: u32| ((f64::from(v) * f64::from(p) / 100.0).round() as u32).max(1);
+                        (Some(scale(decoded.image.width())), Some(scale(decoded.image.height())))
+                    }
+                    None => (num("width"), num("height")),
+                };
+                let resized = transform::resize(&decoded.image, width, height, opts.bool_or("keepRatio", true))?;
                 encode::encode(&resized, icc, in_fmt, &EncodeSettings::for_format(in_fmt))?
             } else {
                 return Err(unknown());
@@ -360,6 +390,31 @@ mod tests {
         let out = run(&r, &src, &op, OptionValues::new()).unwrap();
         let px = image::open(out).unwrap().to_rgb8().get_pixel(2, 2).0;
         assert!(px.iter().all(|&c| c > 240), "transparent area should be white, got {px:?}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn convert_with_max_side_and_resize_by_percent() {
+        let dir = temp_dir("maxside");
+        let src = sample_png(&dir); // 64 × 48
+        let r = registry();
+        let to_jpg = r.describe(Format::Png, "image.convert.jpg").unwrap();
+        let mut o = OptionValues::new();
+        o.insert("maxSide".into(), 32.into());
+        let out = run(&r, &src, &to_jpg, o).unwrap();
+        assert_eq!(image::image_dimensions(&out).unwrap(), (32, 24));
+        // Already small enough: untouched (never enlarged).
+        let mut o = OptionValues::new();
+        o.insert("maxSide".into(), 500.into());
+        let out = run(&r, &src, &to_jpg, o).unwrap();
+        assert_eq!(image::image_dimensions(&out).unwrap(), (64, 48));
+
+        let resize = r.describe(Format::Png, "image.resize").unwrap();
+        let mut o = OptionValues::new();
+        o.insert("percent".into(), 50.into());
+        o.insert("width".into(), 10.into()); // the percentage wins
+        let out = run(&r, &src, &resize, o).unwrap();
+        assert_eq!(image::image_dimensions(&out).unwrap(), (32, 24));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

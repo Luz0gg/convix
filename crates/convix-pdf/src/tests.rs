@@ -213,3 +213,30 @@ fn copy_numbers_are_stripped_only_when_they_are_copy_numbers() {
     assert_eq!(strip_copy_number("doc ()"), "doc ()");
     assert_eq!(strip_copy_number("doc"), "doc");
 }
+
+fn rotations(path: &Path) -> Vec<i64> {
+    let doc = lopdf::Document::load(path).unwrap();
+    doc.get_pages()
+        .values()
+        .map(|id| doc.get_dictionary(*id).unwrap().get(b"Rotate").ok().and_then(|o| o.as_i64().ok()).unwrap_or(0))
+        .collect()
+}
+
+#[test]
+fn rotate_and_delete_pages() {
+    let dir = Dir::new("rotate");
+    let pdf = sample_pdf(&dir); // 3 pages
+
+    let rotated = dir.path("rot.pdf");
+    run("pdf.rotate", &[pdf.clone()], &rotated, opts(&[("angle", "90"), ("pages", "2-3")])).unwrap();
+    assert_eq!(rotations(&rotated), [0, 90, 90]);
+    let twice = dir.path("rot2.pdf");
+    run("pdf.rotate", &[rotated], &twice, opts(&[("angle", "270")])).unwrap();
+    assert_eq!(rotations(&twice), [270, 0, 0], "added to the current rotation");
+
+    let fewer = dir.path("fewer.pdf");
+    run("pdf.deletePages", &[pdf.clone()], &fewer, opts(&[("pages", "2")])).unwrap();
+    assert_eq!(page_count(&fewer), 2);
+    assert!(run("pdf.deletePages", &[pdf.clone()], &fewer, opts(&[("pages", "1-3")])).is_err(), "never an empty PDF");
+    assert!(run("pdf.deletePages", &[pdf], &fewer, opts(&[])).is_err(), "pages are required");
+}

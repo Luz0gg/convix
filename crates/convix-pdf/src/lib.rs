@@ -91,6 +91,28 @@ impl Converter for PdfConverter {
                 ..op("pdf.extract", OperationCategory::Extract, Format::Pdf, "op.extractPages")
             });
             ops.push(OperationDescriptor {
+                output_suffix: Some("-rot"),
+                options: vec![
+                    OptionSpec::Select {
+                        id: "angle",
+                        label_key: "opt.angle",
+                        choices: vec![
+                            Choice::key("90", "opt.angle.right"),
+                            Choice::key("270", "opt.angle.left"),
+                            Choice::key("180", "opt.angle.half"),
+                        ],
+                        default: "90",
+                    },
+                    pages_option(),
+                ],
+                ..op("pdf.rotate", OperationCategory::Transform, Format::Pdf, "op.rotatePdf")
+            });
+            ops.push(OperationDescriptor {
+                output_suffix: Some("-modif"),
+                options: vec![OptionSpec::Text { id: "pages", label_key: "opt.pagesToDelete", placeholder_key: "opt.pages.example" }],
+                ..op("pdf.deletePages", OperationCategory::Transform, Format::Pdf, "op.deletePages")
+            });
+            ops.push(OperationDescriptor {
                 multi_input: true,
                 output_suffix: Some("-fusion"),
                 ..op("pdf.merge", OperationCategory::Combine, Format::Pdf, "op.mergePdf")
@@ -139,6 +161,36 @@ impl Converter for PdfConverter {
                 write_pdf(&ctx.output, &mut doc)
             }
             "pdf.compress" => compress(first, ctx),
+            "pdf.rotate" => {
+                let mut doc = edit::load(first)?;
+                edit::prepare_for_subsets(&mut doc); // inherited /Rotate copied into each page
+                let count = doc.get_pages().len() as u32;
+                let wanted = pages::parse(ctx.options.str_or("pages", ""), count)?;
+                let angle = match ctx.options.str_or("angle", "90") {
+                    "180" => 180,
+                    "270" => 270,
+                    _ => 90,
+                };
+                edit::rotate(&mut doc, &wanted, angle);
+                edit::tidy(&mut doc);
+                write_pdf(&ctx.output, &mut doc)
+            }
+            "pdf.deletePages" => {
+                let mut doc = edit::load(first)?;
+                edit::prepare_for_subsets(&mut doc);
+                let count = doc.get_pages().len() as u32;
+                let spec = ctx.options.str_or("pages", "");
+                if spec.trim().is_empty() {
+                    return Err(Error::InvalidOption { name: "pages".into(), reason: "indique les pages à supprimer (ex. 2, 5-7)".into() });
+                }
+                let remove = pages::parse(spec, count)?;
+                let keep: Vec<u32> = (1..=count).filter(|p| !remove.contains(p)).collect();
+                if keep.is_empty() {
+                    return Err(Error::InvalidOption { name: "pages".into(), reason: "impossible de supprimer toutes les pages".into() });
+                }
+                let mut part = edit::subset(&doc, &keep);
+                write_pdf(&ctx.output, &mut part)
+            }
             "pdf.split" | "pdf.extract" => {
                 let mut doc = edit::load(first)?;
                 edit::prepare_for_subsets(&mut doc);

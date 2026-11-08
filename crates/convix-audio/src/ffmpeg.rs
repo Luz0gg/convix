@@ -28,6 +28,10 @@ pub struct Probe {
     pub sample_rate: Option<u32>,
     /// `None` for lossy sources (decoded as float, but 16 bits is what they really hold).
     pub depth: Option<Depth>,
+    pub has_video: bool,
+    /// Picture size of the first video stream (cover art included).
+    pub width: Option<u32>,
+    pub height: Option<u32>,
 }
 
 impl Probe {
@@ -49,6 +53,19 @@ pub fn parse_probe(stderr: &str) -> Probe {
     for line in stderr.lines().map(str::trim) {
         if let Some(rest) = line.strip_prefix("Duration:") {
             probe.duration = rest.split(',').next().and_then(|t| parse_clock(t.trim()));
+        } else if !probe.has_video && line.starts_with("Stream #") && line.contains(": Video: ") {
+            probe.has_video = true;
+            // "…: Video: h264 (High), yuv420p(tv, bt709), 1920x1080 [SAR 1:1 DAR 16:9], 25 fps"
+            let size = line.split([',', ' ']).find_map(|token| {
+                let (w, h) = token.trim().split_once('x')?;
+                let (w, h) = (w.parse::<u32>().ok()?, h.parse::<u32>().ok()?);
+                // "0x31637661" (codec tag) is not a size.
+                (w > 0 && h > 0).then_some((w, h))
+            });
+            if let Some((w, h)) = size {
+                probe.width = Some(w);
+                probe.height = Some(h);
+            }
         } else if !probe.has_audio && line.starts_with("Stream #") {
             let Some((_, audio)) = line.split_once(": Audio: ") else { continue };
             probe.has_audio = true;
@@ -101,9 +118,15 @@ fn spawn_error(e: std::io::Error) -> Error {
     Error::Failed(format!("impossible de lancer FFmpeg ({e}) : réinstallez le module dans les Réglages"))
 }
 
-pub fn probe(exe: &Path, input: &Path) -> Result<Probe> {
+/// What the file contains (audio and/or video), without requiring either.
+pub fn probe_media(exe: &Path, input: &Path) -> Result<Probe> {
     let out = command(exe).arg("-i").arg(file_arg(input)).output().map_err(spawn_error)?;
-    let probe = parse_probe(&String::from_utf8_lossy(&out.stderr));
+    Ok(parse_probe(&String::from_utf8_lossy(&out.stderr)))
+}
+
+/// Like [`probe_media`], for audio conversions: a file without sound is an error.
+pub fn probe(exe: &Path, input: &Path) -> Result<Probe> {
+    let probe = probe_media(exe, input)?;
     if !probe.has_audio {
         return Err(Error::Failed("ce fichier ne contient pas de piste audio".into()));
     }
@@ -284,13 +307,15 @@ mod tests {
     #[test]
     fn probe_of_a_video_with_aac_audio() {
         let p = parse_probe(
-            "Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'clip.mp4':\n  Duration: 00:03:25.43, start: 0.000000, bitrate: 5000 kb/s\n  Stream #0:0[0x1](und): Video: h264 (High), yuv420p, 1920x1080, 25 fps\n  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 317 kb/s (default)\n",
+            "Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'clip.mp4':\n  Duration: 00:03:25.43, start: 0.000000, bitrate: 5000 kb/s\n  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p, 1920x1080 [SAR 1:1 DAR 16:9], 25 fps\n  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, stereo, fltp, 317 kb/s (default)\n",
         );
         assert!(p.has_audio);
         assert_eq!(p.codec, "aac");
         assert_eq!(p.sample_rate, Some(48000));
         assert_eq!(p.depth, None);
         assert!((p.duration.unwrap() - 205.43).abs() < 1e-6);
+        assert!(p.has_video);
+        assert_eq!((p.width, p.height), (Some(1920), Some(1080)));
     }
 
     #[test]

@@ -65,6 +65,15 @@ pub fn menu_entries(
             entries.push((id, convert_label(target)));
         }
     }
+    // Videos: re-encode first (most asked for by video editors), then extract the sound.
+    for (id, fr_label, en_label) in [
+        ("video.convert.mp4", "Convertir en MP4", "Convert to MP4"),
+        ("video.compress", "Compresser la vidéo", "Compress video"),
+    ] {
+        if ops.iter().any(|o| o.id == id) {
+            entries.push((id.to_owned(), if fr { fr_label } else { en_label }.to_owned()));
+        }
+    }
     for target in [Format::Mp3, Format::Wav] {
         let id = format!("audio.extract.{}", target.extension());
         if ops.iter().any(|o| o.id == id) {
@@ -92,6 +101,7 @@ pub fn menu_entries(
         ("pdf.toImages.png", "Pages en PNG", "Pages to PNG"),
         ("pdf.toImages.jpg", "Pages en JPEG", "Pages to JPEG"),
         ("pdf.split", "Séparer les pages", "Split pages"),
+        ("video.convert.gif", "Convertir en GIF", "Convert to GIF"),
     ] {
         if ops.iter().any(|o| o.id == id) {
             entries.push((
@@ -224,6 +234,7 @@ mod tests {
         let mut registry = Registry::new();
         registry.register(convix_image::ImageConverter);
         registry.register(convix_audio::AudioConverter);
+        registry.register(convix_audio::VideoConverter);
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
 
         // Without FFmpeg: no audio menu at all.
@@ -257,7 +268,7 @@ mod tests {
             .unwrap()
             .get_value("MUIVerb")
             .unwrap();
-        assert_eq!(first, "Extraire l'audio (MP3)");
+        assert_eq!(first, "Convertir en MP4");
 
         imp::uninstall_at(&root).unwrap();
         assert!(

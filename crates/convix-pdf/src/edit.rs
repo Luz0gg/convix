@@ -199,3 +199,17 @@ fn collect_refs(object: &Object, out: &mut Vec<ObjectId>) {
         _ => {}
     }
 }
+
+/// Turn pages `pages` (1-based) clockwise by `degrees` (90, 180 or 270), on top of their
+/// current rotation. Lossless: only the page's /Rotate entry changes.
+/// `doc` must have gone through [`prepare_for_subsets`] (so each page holds its /Rotate).
+pub fn rotate(doc: &mut Document, pages: &[u32], degrees: i64) {
+    let numbers = doc.get_pages();
+    for n in pages {
+        let Some(id) = numbers.get(n) else { continue };
+        if let Ok(page) = doc.get_dictionary_mut(*id) {
+            let current = page.get(b"Rotate").ok().and_then(|o| o.as_i64().ok()).unwrap_or(0);
+            page.set("Rotate", (current + degrees).rem_euclid(360));
+        }
+    }
+}

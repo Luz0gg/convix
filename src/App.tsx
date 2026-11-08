@@ -4,7 +4,10 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
 import { useI18n } from "./i18n";
 import { api, dirName, errorText, ext, rememberedOptions } from "./lib/api";
-import { supports } from "./lib/ops";
+import { addHistory } from "./lib/history";
+import { opLabel, supports } from "./lib/ops";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { HistoryPanel } from "./features/history/HistoryPanel";
 import type { FileInfo, JobEvent, LaunchRequest, OperationDescriptor, OptionValues, Settings } from "./lib/types";
 import { DropZone } from "./features/drop/DropZone";
 import { useFileDrop } from "./features/drop/useFileDrop";
@@ -17,7 +20,7 @@ import { useModules } from "./features/modules/modules";
 import { UpdateBanner } from "./features/updates/UpdateBanner";
 import type { Update } from "@tauri-apps/plugin-updater";
 
-type Toast = { kind: "ok" | "error"; text: string };
+type Toast = { kind: "ok" | "error"; text: string; action?: { label: string; run: () => void } };
 /** An action waiting for a module download (FFmpeg…). */
 type PendingRun = { moduleId: string; op: OperationDescriptor; targets: FileInfo[]; options: OptionValues; combine: boolean };
 type RunFlags = { moduleJustInstalled?: boolean; /** Several files → one result, shown in the batch bar. */ combine?: boolean };
@@ -43,6 +46,7 @@ export default function App() {
   const [running, setRunning] = useState<string[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [pendingRun, setPendingRun] = useState<PendingRun | null>(null);
   const [combineJob, setCombineJob] = useState<JobEvent | undefined>();
@@ -255,10 +259,13 @@ export default function App() {
         }
         const count = (s: JobEvent["status"]) => results.filter((r) => r.status === s).length;
         const [done, failed, cancelled] = [count("done"), count("failed"), count("cancelled")];
+        const outputs = results.flatMap((r) => (r.status === "done" ? r.outputs : []));
+        addHistory({ at: Date.now(), operationId: op.id, label: opLabel(t, op), outputs, done, failed });
         if (results.length > 1 && !combine)
           setToast({
             kind: failed ? "error" : "ok",
             text: cancelled ? t("batch.summaryCancelled", { done, failed, cancelled }) : t("batch.summary", { done, failed }),
+            action: outputs[0] ? { label: t("batch.openFolder"), run: () => revealItemInDir(outputs[0]).catch(() => {}) } : undefined,
           });
       } catch (e) {
         showError(e);
@@ -314,6 +321,9 @@ export default function App() {
       } else if (e.key === ",") {
         e.preventDefault();
         setShowSettings(true);
+      } else if (e.key.toLowerCase() === "h") {
+        e.preventDefault();
+        setShowHistory(true);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -385,6 +395,13 @@ export default function App() {
             </button>
           )}
           <button
+            onClick={() => setShowHistory(true)}
+            className="rounded-lg px-3 py-1.5 text-sm text-muted hover:bg-surface-2 hover:text-text"
+            title={`${t("history.title")} (Ctrl+H)`}
+          >
+            <span aria-hidden>🕘</span> {t("history.title")}
+          </button>
+          <button
             onClick={() => setShowSettings(true)}
             className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-surface-2"
             title={`${t("app.settings")} (Ctrl+,)`}
@@ -423,6 +440,8 @@ export default function App() {
         </section>
       )}
 
+      {showHistory && <HistoryPanel onClose={() => setShowHistory(false)} />}
+
       {showSettings && settings && (
         <SettingsPanel settings={settings} onChange={changeSettings} onClose={() => setShowSettings(false)} onCheckUpdate={checkUpdate} />
       )}
@@ -447,6 +466,11 @@ export default function App() {
           }`}
         >
           <span>{toast.text}</span>
+          {toast.action && (
+            <button onClick={toast.action.run} className="shrink-0 rounded-md border border-current px-2 text-xs font-semibold">
+              {toast.action.label}
+            </button>
+          )}
           <button onClick={() => setToast(null)} aria-label={t("toast.close")} title={t("toast.close")} className="-mr-1 opacity-70 hover:opacity-100">
             ✕
           </button>

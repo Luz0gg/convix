@@ -2,6 +2,7 @@
 //! Also offers "extract audio" on video files — handy for editing.
 
 mod ffmpeg;
+mod video;
 
 use convix_core::{
     Converter, Error, Format, JobContext, MediaKind, OperationCategory, OperationDescriptor,
@@ -11,6 +12,7 @@ use ffmpeg::{Depth, Probe};
 use std::path::PathBuf;
 
 pub use ffmpeg::probe;
+pub use video::VideoConverter;
 
 pub struct AudioConverter;
 

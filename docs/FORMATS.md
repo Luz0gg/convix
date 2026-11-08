@@ -16,10 +16,10 @@ Source de vérité : le code (`crates/convix-*/src/lib.rs`, fonction `operations
 
 | Sortie | Options | Moteur |
 |---|---|---|
-| PNG | optimisation sans perte (défaut : oui) | `image` + oxipng |
-| JPEG | qualité (défaut 90), progressif, transparence → fond blanc | mozjpeg |
-| WebP | sans perte oui/non, qualité (défaut 90) | libwebp |
-| AVIF | qualité (défaut 75) | ravif (rav1e) |
+| PNG | optimisation sans perte (défaut : oui), côté max | `image` + oxipng |
+| JPEG | qualité (défaut 90), progressif, transparence → fond blanc, côté max | mozjpeg |
+| WebP | sans perte oui/non, qualité (défaut 90), côté max | libwebp |
+| AVIF | qualité (défaut 75), côté max | ravif (rav1e) |
 | ICO | toutes tailles 16 → 256 (défaut) ou une seule taille, carré transparent | `image` |
 | GIF, TIFF, BMP, TGA | — | `image` |
 | depuis SVG | largeur de rendu (défaut : taille d'origine) | resvg |
@@ -30,7 +30,9 @@ Source de vérité : le code (`crates/convix-*/src/lib.rs`, fonction `operations
 |---|---|---|
 | Compresser sans perte | PNG | `photo-min.png`, pixels identiques (oxipng, effort rapide/équilibré/max) |
 | Compresser plus léger | PNG (réduction à 256/128/64/32 couleurs), JPEG et WebP (qualité, défaut 75) | `photo-min.<ext>` |
-| Redimensionner | tous sauf SVG et ICO | `photo-resized.<ext>`, largeur et/ou hauteur, proportions gardées ou non |
+| Redimensionner | tous sauf SVG et ICO | `photo-resized.<ext>`, largeur et/ou hauteur (proportions gardées ou non), **ou un pourcentage** |
+
+« Côté max » : le côté le plus long est ramené à N pixels s'il dépasse (jamais agrandi). Pratique pour convertir un dossier de photos pour le web en un seul lancement.
 
 ### Comportements garantis
 - **Orientation EXIF appliquée** (photos de téléphone jamais tournées).
@@ -56,6 +58,17 @@ Source de vérité : le code (`crates/convix-*/src/lib.rs`, fonction `operations
 
 Pour toutes : fréquence (comme l'original / 48 / 44,1 kHz) et volume (inchangé, normalisé −14 LUFS streaming, −16 LUFS podcast, −23 LUFS TV). La normalisation garde la fréquence d'origine. Les tags (artiste, titre…) sont conservés, la vidéo et la pochette sont retirées. Seule la première piste audio est prise.
 
+## Vidéo (module `ffmpeg`) — nouveau
+
+| Action | Entrées | Résultat | Options |
+|---|---|---|---|
+| En MP4 | MOV, MKV, WebM, AVI | H.264 + AAC, lecture rapide sur le web (`faststart`) | qualité haute / équilibrée / fichier léger, définition max (4K, 1080p, 720p, 480p) |
+| En WebM | MP4, MOV, MKV, AVI | VP9 + Opus | idem |
+| En GIF | toutes | palette optimisée, en boucle, sans son | largeur (320 → 800 px), 10 / 15 / 24 images/s |
+| Compresser la vidéo | toutes | `clip-min.mp4`, H.264 ; 1080p max par défaut | qualité, définition max |
+
+La définition max s'applique au **petit côté** (une vidéo de téléphone en portrait 1080×1920 limitée à 720p devient 720×1280) et n'agrandit jamais. Première piste vidéo et première piste audio ; sous-titres retirés.
+
 ## PDF (intégré, aucun module) — ✅ Phase 3
 
 | Action | Résultat | Moteur |
@@ -63,7 +76,9 @@ Pour toutes : fréquence (comme l'original / 48 / 44,1 kHz) et volume (inchangé
 | PDF → PNG / JPEG | une image par page : `doc-p01.png`, `doc-p02.png`… ; 72 / 150 / 300 DPI ; pages au choix | moteur PDF de Windows (`Windows.Data.Pdf`) |
 | Compresser | `doc-min.pdf` ; sans perte (nettoyage + flux compressés) / équilibrée (photos ≤ 2200 px, JPEG 75) / forte (≤ 1400 px, JPEG 60) ; jamais plus gros que l'original | lopdf + mozjpeg |
 | Séparer les pages | un PDF par page : `doc-p1.pdf`… ; toutes ou une liste | lopdf |
-| Extraire des pages | `doc-extrait.pdf` avec les pages choisies (ordre du document) | lopdf |
+| Extraire / réordonner des pages | `doc-extrait.pdf` avec les pages choisies, **dans l'ordre tapé** (`3, 1-2` réordonne) | lopdf |
+| Faire pivoter des pages | `doc-rot.pdf` ; ↻ 90°, ↺ 90° ou 180°, toutes les pages ou une liste ; sans perte | lopdf |
+| Supprimer des pages | `doc-modif.pdf` sans les pages indiquées | lopdf |
 | Fusionner plusieurs PDF | `<premier>-fusion.pdf`, dans l'ordre choisi ; les signets sont retirés | lopdf |
 | Images → PDF | une page par image ; A4 / Letter / taille de l'image, marges 1 cm ; JPEG intégrés tels quels, transparence gardée | lopdf |
 

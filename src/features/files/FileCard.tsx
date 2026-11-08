@@ -33,7 +33,7 @@ export const FileCard = memo(function FileCard({
     op.options.length ? onSelect(file, selectedOp?.id === op.id ? null : op) : onRun(file, op, {});
 
   return (
-    <article className="rounded-xl border border-border bg-surface p-4" aria-label={file.name}>
+    <article className="rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/30" aria-label={file.name}>
       <header className="mb-3 flex items-center gap-3">
         <Thumbnail file={file} />
         <div className="min-w-0 flex-1">

@@ -30,6 +30,7 @@ function opsFor(format: string): OperationDescriptor[] {
       { type: "number", id: "width", labelKey: "opt.width", min: 1, max: null, default: null, unit: "px" },
       { type: "number", id: "height", labelKey: "opt.height", min: 1, max: null, default: null, unit: "px" },
       { type: "toggle", id: "keepRatio", labelKey: "opt.keepRatio", default: true },
+      { type: "number", id: "percent", labelKey: "opt.percent", min: 1, max: 1000, default: null, unit: "%" },
     ],
   });
   return ops;
@@ -43,14 +44,24 @@ const audioOptions = (to: string): OperationDescriptor["options"] => [
     : { type: "select", id: "bitrate", labelKey: "opt.bitrate", choices: ["320", "256", "192", "128", "96"].map((v) => ({ value: v, label: `${v} kbps`, literal: true })), default: "192" },
   { type: "select", id: "loudness", labelKey: "opt.loudness", choices: ["off", "streaming", "podcast", "broadcast"].map((v) => ({ value: v, label: `opt.loudness.${v}`, literal: false })), default: "off" },
 ];
+const videoQuality = { type: "select" as const, id: "quality", labelKey: "opt.videoQuality", choices: ["high", "balanced", "small"].map((v) => ({ value: v, label: `opt.videoQuality.${v}`, literal: false })), default: "balanced" };
+const maxSize = (d: string) => ({ type: "select" as const, id: "maxSize", labelKey: "opt.maxSize", choices: [{ value: "source", label: "opt.keepSource", literal: false }, ...[["2160", "4K"], ["1080", "1080p"], ["720", "720p"], ["480", "480p"]].map(([value, label]) => ({ value, label, literal: true }))], default: d });
+function videoOpsFor(format: string): OperationDescriptor[] {
+  const base = { converter: "video", multiInput: false, requires: ["ffmpeg"], outputSuffix: null } as const;
+  const ops: OperationDescriptor[] = ["mp4", "webm"].filter((f) => f !== format).map((to) => ({ ...base, id: `video.convert.${to}`, category: "convert", output: to as never, labelKey: "op.convert", options: [videoQuality, maxSize("source")] }));
+  ops.push({ ...base, id: "video.convert.gif", category: "convert", output: "gif", labelKey: "op.convert", options: [{ type: "select", id: "width", labelKey: "opt.gifWidth", choices: ["320", "480", "640", "800"].map((v) => ({ value: v, label: `${v} px`, literal: true })), default: "480" }, { type: "select", id: "fps", labelKey: "opt.fps", choices: ["10", "15", "24"].map((v) => ({ value: v, label: `${v} i/s`, literal: true })), default: "15" }] });
+  ops.push({ ...base, id: "video.compress", category: "compress", output: "mp4", outputSuffix: "-min", labelKey: "op.compressVideo", options: [videoQuality, maxSize("1080")] });
+  return ops;
+}
 function audioOpsFor(format: string): OperationDescriptor[] {
   const video = VIDEO.includes(format);
   const outs = video ? ["mp3", "wav", "flac", "m4a"] : AUDIO.filter((f) => f !== format);
-  return outs.map((to) => ({
+  const audioOps: OperationDescriptor[] = outs.map((to) => ({
     id: `audio.${video ? "extract" : "convert"}.${to}`, converter: "audio", category: video ? "extract" : "convert",
     output: to as OperationDescriptor["output"], outputSuffix: null, labelKey: video ? "op.extractAudio" : "op.convert",
     multiInput: false, requires: ["ffmpeg"], options: audioOptions(to),
   }));
+  return video ? [...videoOpsFor(format), ...audioOps] : audioOps;
 }
 const pdfOp = (id: string, category: string, output: string, labelKey: string, extra: Partial<OperationDescriptor> = {}): OperationDescriptor =>
   ({ id, converter: "pdf", category, output, outputSuffix: null, labelKey, multiInput: false, requires: [], options: [], ...extra }) as OperationDescriptor;
@@ -62,6 +73,8 @@ const PDF_OPS = [
   pdfOp("pdf.compress", "compress", "pdf", "op.compressPdf", { options: [{ type: "select", id: "level", labelKey: "opt.compression", choices: [["lossless", "opt.pdf.lossless"], ["balanced", "opt.pdf.balanced"], ["strong", "opt.pdf.strong"]].map(([value, label]) => ({ value, label, literal: false })), default: "balanced" }] }),
   pdfOp("pdf.split", "extract", "pdf", "op.splitPdf", { options: [pages] }),
   pdfOp("pdf.extract", "extract", "pdf", "op.extractPages", { options: [{ ...pages, placeholderKey: "opt.pages.example" }] }),
+  pdfOp("pdf.rotate", "transform", "pdf", "op.rotatePdf", { options: [{ type: "select", id: "angle", labelKey: "opt.angle", choices: [["90", "opt.angle.right"], ["270", "opt.angle.left"], ["180", "opt.angle.half"]].map(([value, label]) => ({ value, label, literal: false })), default: "90" }, pages] }),
+  pdfOp("pdf.deletePages", "transform", "pdf", "op.deletePages", { options: [{ type: "text", id: "pages", labelKey: "opt.pagesToDelete", placeholderKey: "opt.pages.example" }] }),
   pdfOp("pdf.merge", "combine", "pdf", "op.mergePdf", { multiInput: true }),
 ];
 let ffmpegInstalled = false;
