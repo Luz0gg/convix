@@ -64,9 +64,9 @@ Chaque phase se termine par une version utilisable. ✅ fait · 🔜 en cours ·
 - ✅ Journal d'erreurs local (`%LOCALAPPDATA%\io.github.luz0gg.convix\logs\convix.log`) : échecs, plantages, erreurs de l'interface
 - ✅ Section « À propos » : version, GitHub, signaler un problème, afficher le journal, crédits
 - ✅ **v1.0.0 publiée** le 2026-11-06 : https://github.com/Luz0gg/convix/releases/tag/v1.0.0
-- 🔜 Tester une vraie mise à jour automatique (publier une v1.0.1 sur un PC où la v1.0.0 est installée)
+- ✅ Vraie mise à jour automatique testée le 2026-11-08 : la 1.0.0 installée a proposé, téléchargé (signature vérifiée), installé la 1.0.1 et s'est relancée seule ; FFmpeg, réglages et menu clic droit conservés
 
-## v1.0.1 — Audit et fiabilité (2026-11-06, nuit)
+## v1.0.1 — Audit et fiabilité ✅ publiée le 2026-11-08
 Rapport complet : [`docs/AUDIT-2026-11.md`](AUDIT-2026-11.md).
 - ✅ Journal démarré avant tout le reste, ligne « exit » à chaque fermeture normale, recherches de mise à jour journalisées
 - ✅ Téléchargement de FFmpeg fiable sur connexion lente (il échouait sous ~5 Mbit/s), annulable même bloqué

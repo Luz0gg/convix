@@ -15,6 +15,13 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 function Step($text) { Write-Host "`n==> $text" -ForegroundColor Cyan }
+
+# The optimized build + tests can saturate every core for minutes: run them at low priority
+# on half the cores so the PC stays usable (a full-load run once froze this PC).
+try { [System.Diagnostics.Process]::GetCurrentProcess().PriorityClass = "BelowNormal" } catch {}
+$halfCores = [math]::Max(1, [int]([Environment]::ProcessorCount / 2))
+$env:CARGO_BUILD_JOBS = "$halfCores"
+$env:RUST_TEST_THREADS = "$halfCores"
 function Fail($text) { Write-Host "ERREUR : $text" -ForegroundColor Red; exit 1 }
 # Native commands (git, gh, cargo) don't stop the script by themselves in PowerShell 5.1.
 function Run([string]$what, [scriptblock]$command) {
