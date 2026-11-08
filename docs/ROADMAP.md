@@ -92,7 +92,7 @@ Rapport complet : [`docs/AUDIT-2026-11.md`](AUDIT-2026-11.md).
 - Documents bureautiques (LibreOffice en module), OCR
 - macOS / Linux
 
-## Nouveautés (branche `feat/nuit-ameliorations`, à valider)
+## v1.1.0 — Vidéo, historique, outils PDF ✅ (validé le 2026-11-08)
 - ✅ **Vidéo** (module FFmpeg) : en MP4, en WebM, en GIF (palette optimisée), « Compresser la vidéo » ; qualité et définition max (4K → 480p, petit côté) ; clic droit « Convertir en MP4 », « Compresser la vidéo », « Convertir en GIF »
 - ✅ **Images** : « côté max » sur les conversions (JPEG, PNG, WebP, AVIF), redimensionnement en pourcentage
 - ✅ **PDF** : faire pivoter des pages, supprimer des pages ; réordonner = « Extraire des pages » dans l'ordre voulu
