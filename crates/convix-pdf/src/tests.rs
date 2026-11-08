@@ -228,15 +228,15 @@ fn rotate_and_delete_pages() {
     let pdf = sample_pdf(&dir); // 3 pages
 
     let rotated = dir.path("rot.pdf");
-    run("pdf.rotate", &[pdf.clone()], &rotated, opts(&[("angle", "90"), ("pages", "2-3")])).unwrap();
+    run("pdf.rotate", std::slice::from_ref(&pdf), &rotated, opts(&[("angle", "90"), ("pages", "2-3")])).unwrap();
     assert_eq!(rotations(&rotated), [0, 90, 90]);
     let twice = dir.path("rot2.pdf");
     run("pdf.rotate", &[rotated], &twice, opts(&[("angle", "270")])).unwrap();
     assert_eq!(rotations(&twice), [270, 0, 0], "added to the current rotation");
 
     let fewer = dir.path("fewer.pdf");
-    run("pdf.deletePages", &[pdf.clone()], &fewer, opts(&[("pages", "2")])).unwrap();
+    run("pdf.deletePages", std::slice::from_ref(&pdf), &fewer, opts(&[("pages", "2")])).unwrap();
     assert_eq!(page_count(&fewer), 2);
-    assert!(run("pdf.deletePages", &[pdf.clone()], &fewer, opts(&[("pages", "1-3")])).is_err(), "never an empty PDF");
+    assert!(run("pdf.deletePages", std::slice::from_ref(&pdf), &fewer, opts(&[("pages", "1-3")])).is_err(), "never an empty PDF");
     assert!(run("pdf.deletePages", &[pdf], &fewer, opts(&[])).is_err(), "pages are required");
 }
