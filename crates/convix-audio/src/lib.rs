@@ -300,14 +300,14 @@ mod tests {
 
         let hires = dir.join("hires.flac");
         let status = std::process::Command::new(&exe)
-            .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=600:sample_rate=96000", "-ac", "2", "-c:a", "flac"])
+            .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=120:sample_rate=96000", "-ac", "2", "-c:a", "flac"])
             .arg(&hires)
             .status()
             .unwrap();
         assert!(status.success());
         let inputs = [hires.clone()];
 
-        // 10 minutes of audio normalized to MP3, cancelled after 300 ms.
+        // 2 minutes of audio normalized to MP3, cancelled after 300 ms.
         let cancel = CancelToken::new();
         let mut options = OptionValues::new();
         options.insert("loudness".into(), "-14".into());
