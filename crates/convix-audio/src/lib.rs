@@ -155,7 +155,9 @@ fn encode_args(to: Format, info: &Probe, ctx: &JobContext) -> Vec<String> {
 
     let loudness = o.str_or("loudness", "off");
     if loudness != "off" {
-        push(&["-af", &format!("loudnorm=I={loudness}:TP=-1.5:LRA=11")]);
+        // loudnorm emits a sound shorter than its 3 s window as one huge frame, which the
+        // FLAC encoder refuses ("invalid block size"): cut it back into normal frames.
+        push(&["-af", &format!("loudnorm=I={loudness}:TP=-1.5:LRA=11,asetnsamples=n=4096:p=0")]);
     }
     match o.str_or("sampleRate", "source") {
         // Opus always encodes at 48 kHz: ffmpeg picks it by itself.
@@ -332,6 +334,30 @@ mod tests {
         assert!(started.elapsed().as_secs() < 5, "cancel took {:?}", started.elapsed());
         let leftovers: Vec<_> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name()).filter(|n| n.to_string_lossy().ends_with(".part")).collect();
         assert!(leftovers.is_empty(), "{leftovers:?}");
+
+        // A 2-second mono clip normalized to FLAC (loudnorm used to emit one oversized frame).
+        let blip = dir.join("blip.wav");
+        let status = std::process::Command::new(&exe)
+            .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=duration=2"])
+            .arg(&blip)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let blip_inputs = [blip];
+        for (id, ext) in [("audio.convert.flac", "flac"), ("audio.convert.wav", "wav")] {
+            let out = dir.join(format!("blip-out.{ext}"));
+            let cancel = CancelToken::new();
+            let ctx = JobContext {
+                operation_id: id,
+                inputs: &blip_inputs,
+                output: out.clone(),
+                options: &options,
+                progress: &|_f: f32| {},
+                cancel: &cancel,
+                modules: &locate,
+            };
+            AudioConverter.run(&ctx).unwrap_or_else(|e| panic!("short {id}: {e}"));
+        }
 
         // Short 96 kHz excerpt: normalization to MP3 and Opus must succeed.
         let short = dir.join("short96.flac");
